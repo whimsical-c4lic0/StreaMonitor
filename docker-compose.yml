@@ -10,3 +10,4 @@ services:
       - ./parameters.py:/app/parameters.py
     ports:
       - '6969:6969'
+      - '5000:5000'
