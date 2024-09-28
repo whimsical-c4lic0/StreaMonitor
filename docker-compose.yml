@@ -8,8 +8,9 @@ services:
       - ./downloads:/app/downloads
       - ./config.json:/app/config.json
       - ./parameters.py:/app/parameters.py
-#    ports:
-#      - '6969:6969'
+      - ./web:/app/web
+    ports:
+      - '6969:6969'
 
 networks:
   default:
