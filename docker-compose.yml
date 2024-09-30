@@ -9,8 +9,8 @@ services:
       - ./config.json:/app/config.json
       - ./parameters.py:/app/parameters.py
       - ./web:/app/web
-    ports:
-      - '6969:6969'
+#    ports:
+#      - '6969:6969'
 
 networks:
   default:
