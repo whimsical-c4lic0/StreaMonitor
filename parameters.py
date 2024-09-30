@@ -1,5 +1,5 @@
 DOWNLOADS_DIR = 'downloads'
-MIN_FREE_DISK_PERCENT = 1.0  # in %
+MIN_FREE_DISK_PERCENT = 5.0  # in %
 DEBUG = False
 HTTP_USER_AGENT = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:75.0) Gecko/20100101 Firefox/75.0"
 
@@ -35,7 +35,7 @@ SEGMENT_TIME = None
 
 # Bind address for the web server
 # 0.0.0.0 for remote access from all host
-WEBSERVER_HOST = "127.0.0.1"
+WEBSERVER_HOST = "0.0.0.0"
 WEBSERVER_PORT = 5000
 
 # Password for the web server
