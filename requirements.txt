@@ -7,3 +7,4 @@ beautifulsoup4
 websocket-client
 ffmpy
 m3u8
+curl_cffi
