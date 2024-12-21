@@ -5,6 +5,7 @@ from enum import Enum
 from time import sleep
 from datetime import datetime
 from threading import Thread
+from fake_useragent import UserAgent
 
 import requests
 import requests.cookies
@@ -29,7 +30,7 @@ class Bot(Thread):
     long_offline_timeout = 600
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:75.0) Gecko/20100101 Firefox/75.0"
+        "User-Agent": UserAgent().chrome
     }
 
     class Status(Enum):
