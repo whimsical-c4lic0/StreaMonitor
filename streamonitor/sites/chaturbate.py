@@ -1,3 +1,4 @@
+import re
 import requests
 from streamonitor.bot import Bot
 
@@ -12,7 +13,12 @@ class Chaturbate(Bot):
         self.sleep_on_error = 60
 
     def getVideoUrl(self):
-        return self.getWantedResolutionPlaylist(self.lastInfo['url'])
+        url = self.lastInfo['url']
+        if self.lastInfo.get('cmaf_edge'):
+            url = url.replace('playlist.m3u8', 'playlist_sfm4s.m3u8')
+            url = re.sub('live-.+amlst', 'live-c-fhls/amlst', url)
+
+        return self.getWantedResolutionPlaylist(url)
 
     def getStatus(self):
         headers = {"X-Requested-With": "XMLHttpRequest"}
