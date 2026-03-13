@@ -1,4 +1,5 @@
 import itertools
+import json
 import random
 import re
 import time
@@ -24,11 +25,8 @@ class StripChat(Bot):
     _static_data = None
     _main_js_data = None
     _doppio_js_data = None
-    _mouflon_keys: dict = {
-        "Zeechoej4aleeshi": "ubahjae7goPoodi6",
-        "Zokee2OhPh9kugh4": "Quean4cai9boJa5a",
-        "Ook7quaiNgiyuhai": "EQueeGh2kaewa3ch",
-    }
+    _mouflon_cache_filename = 'stripchat_mouflon_keys.json'
+    _mouflon_keys: dict = None
     _session = None
     
     _DOPPIO_INDEX_PATTERN = re.compile(r'(\d+):\s*"([a-f0-9]+)"')
@@ -50,6 +48,16 @@ class StripChat(Bot):
     _OFFLINE_STATUSES = frozenset(["off", "idle"])
 
     __slots__ = ('vr',)
+
+    if os.path.exists(_mouflon_cache_filename):
+        with open(_mouflon_cache_filename) as f:
+            try:
+                if not isinstance(_mouflon_keys, dict):
+                    _mouflon_keys = {}
+                _mouflon_keys.update(json.load(f))
+                print('Loaded StripChat mouflon key cache')
+            except Exception as e:
+                print('Error loading mouflon key cache:', e)
 
     def __init__(self, username):
         if StripChat._static_data is None:
