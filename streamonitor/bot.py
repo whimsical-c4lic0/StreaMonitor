@@ -4,12 +4,10 @@ import traceback
 from enum import Enum
 
 import m3u8
+from curl_cffi import requests
 from time import sleep
 from datetime import datetime
 from threading import Thread
-
-import requests
-import requests.cookies
 
 from streamonitor.enums import Status, COUNTRIES, Gender, GENDER_DATA
 import streamonitor.log as log
