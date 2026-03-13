@@ -1,5 +1,6 @@
 import requests
 from streamonitor.bot import Bot
+from streamonitor.enums import Status
 
 
 class StreaMate(Bot):
@@ -7,11 +8,19 @@ class StreaMate(Bot):
     siteslug = 'SM'
     aliases = ['pornhublive']
 
+    def getWebsiteURL(self):
+        return "https://streamate.com/cam/" + self.username
+
     def getPlaylistVariants(self, url):
         sources = []
         # formats: mp4-rtmp, mp4-hls, mp4-ws
         for source in self.lastInfo['formats']['mp4-hls']['encodings']:
-            sources.append(( source['location'], (source['videoWidth'], source['videoHeight']) ))
+            sources.append({
+                'url': source['location'],
+                'resolution': (source['videoWidth'], source['videoHeight']),
+                'frame_rate': None,
+                'bandwidth': None
+            })
         return sources
 
     def getVideoUrl(self):
@@ -22,12 +31,9 @@ class StreaMate(Bot):
             'Content-Type': 'application/json',
             'Referer': 'https://streamate.com/'
         }
-        r = requests.get('https://manifest-server.naiadsystems.com/live/s:' + self.username + '.json?last=load&format=mp4-hls',
+        r = self.session.get('https://manifest-server.naiadsystems.com/live/s:' + self.username + '.json?last=load&format=mp4-hls',
                          headers=headers)
 
         if r.status_code == 200:
             self.lastInfo = r.json()
-        return Bot.Status(r.status_code)
-
-
-Bot.loaded_sites.add(StreaMate)
+        return Status(r.status_code)

@@ -4,6 +4,7 @@ import requests
 from requests.cookies import RequestsCookieJar
 from streamonitor.bot import Bot
 from streamonitor.downloaders.hls import getVideoNativeHLS
+from streamonitor.enums import Status
 
 
 class ManyVids(Bot):
@@ -20,7 +21,7 @@ class ManyVids(Bot):
         self.updateSiteCookies()
 
     def requestStreamInfo(self):
-        r = requests.get("/".join([self.lastInfo['publicAPIURL'], self.lastInfo['floorId'], 'player-settings', self.username]), headers=self.headers, cookies=self.cookies)
+        r = self.session.get("/".join([self.lastInfo['publicAPIURL'], self.lastInfo['floorId'], 'player-settings', self.username]), headers=self.headers, cookies=self.cookies)
         if r.cookies is not None:
             self.cookies.update(r.cookies)
         return r
@@ -30,7 +31,7 @@ class ManyVids(Bot):
         return r.cookies is not None
 
     def updateSiteCookies(self):
-        r = requests.get('https://www.manyvids.com/tak-live-redirect.php', allow_redirects=False)
+        r = self.session.get('https://www.manyvids.com/tak-live-redirect.php', allow_redirects=False)
         self.cookies.update(r.cookies)
 
     def getVideoUrl(self):
@@ -41,21 +42,18 @@ class ManyVids(Bot):
         return self.getWantedResolutionPlaylist(url)
 
     def getStatus(self):
-        r = requests.get('https://roompool.live.manyvids.com/roompool/' + self.username + '?private=false', headers=self.headers)
+        r = self.session.get('https://roompool.live.manyvids.com/roompool/' + self.username + '?private=false', headers=self.headers)
         if r.status_code != 200:
-            return Bot.Status.UNKNOWN
+            return Status.UNKNOWN
 
         self.lastInfo = r.json()
 
         if self.lastInfo['roomLocationReason'] == "ROOM_VALIDATION_FAILED":
-            return Bot.Status.NOTEXIST
+            return Status.NOTEXIST
         if self.lastInfo['roomLocationReason'] == "ROOM_OK":
             r = self.requestStreamInfo()
             if 'withCredentials' not in r.json():
-                return Bot.Status.OFFLINE
-            return Bot.Status.PUBLIC
+                return Status.OFFLINE
+            return Status.PUBLIC
 
-        return Bot.Status.UNKNOWN
-
-
-Bot.loaded_sites.add(ManyVids)
+        return Status.UNKNOWN

@@ -1,5 +1,6 @@
 import requests
 from streamonitor.bot import Bot
+from streamonitor.enums import Status
 
 
 class AmateurTV(Bot):
@@ -10,7 +11,12 @@ class AmateurTV(Bot):
         sources = []
         for resolution in self.lastInfo['qualities']:
             width, height = resolution.split('x')
-            sources.append(( f"{self.lastInfo['videoTechnologies']['fmp4']}&variant={height}", (int(width), int(height)) ))
+            sources.append({
+                'url': f"{self.lastInfo['videoTechnologies']['fmp4']}&variant={height}",
+                'resolution': (int(width), int(height)),
+                'frame_rate': None,
+                'bandwidth': None
+            })
         return sources
 
     def getVideoUrl(self):
@@ -21,24 +27,22 @@ class AmateurTV(Bot):
             'Content-Type': 'application/json',
             'Referer': 'https://amateur.tv/'
         }
-        r = requests.get(f'https://www.amateur.tv/v3/readmodel/show/{self.username}/en', headers=headers)
+        r = self.session.get(f'https://www.amateur.tv/v3/readmodel/show/{self.username}/en', headers=headers)
 
         if r.status_code != 200:
-            return Bot.Status.UNKNOWN
+            return Status.UNKNOWN
 
         self.lastInfo = r.json()
 
         if self.lastInfo.get('message') == 'NOT_FOUND':
-            return Bot.Status.NOTEXIST
+            return Status.NOTEXIST
         if self.lastInfo.get('result') == 'KO':
-            return Bot.Status.UNKNOWN
+            return Status.UNKNOWN
         if self.lastInfo.get('status') == 'online':
             if self.lastInfo.get('privateChatStatus') is None:
-                return Bot.Status.PUBLIC
+                return Status.PUBLIC
             else:
-                return Bot.Status.PRIVATE
+                return Status.PRIVATE
         if self.lastInfo.get('status') == 'offline':
-            return Bot.Status.OFFLINE
-
-
-Bot.loaded_sites.add(AmateurTV)
+            return Status.OFFLINE
+        return Status.UNKNOWN
