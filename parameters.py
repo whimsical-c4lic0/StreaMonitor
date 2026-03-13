@@ -1,20 +1,90 @@
-DOWNLOADS_DIR = 'downloads'
-MIN_FREE_DISK_PERCENT = 1.0  # in %
-DEBUG = False
+import os.path
+import environ
+from fake_useragent import UserAgent
+
+
+env = environ.Env()
+if os.path.exists('.env'):
+    environ.Env.read_env('.env')
+
+
+DOWNLOADS_DIR = env.str("STRMNTR_DOWNLOAD_DIR", "downloads")
+MIN_FREE_DISK_PERCENT = env.float("STRMNTR_MIN_FREE_SPACE", 5.0)  # in %
+DEBUG = env.bool("STRMNTR_DEBUG", False)
+
+# The camsoda bot ignores this setting in favor of a chrome useragent generated with the fake-useragent library
+HTTP_USER_AGENT = env.str("STRMNTR_USER_AGENT", UserAgent().chrome)
+
+# Specify the full path to the ffmpeg binary. By default, ffmpeg found on PATH is used.
+FFMPEG_PATH = env.str("STRMNTR_FFMPEG_PATH", 'ffmpeg')
 
 # You can enter a number to select a specific height.
 # Use a huge number here and closest match to get the highest resolution variant
 # Eg: 240, 360, 480, 720, 1080, 1440, 99999
-WANTED_RESOLUTION = 1080
+WANTED_RESOLUTION = env.int("STRMNTR_RESOLUTION", 1080)
 
 # Specify match type when specified height
 # Possible values: exact, exact_or_least_higher, exact_or_highest_lower, closest
 # Beware of the exact policy. Nothing gets downloaded if the wanted resolution is not available
-WANTED_RESOLUTION_PREFERENCE = 'closest'
+WANTED_RESOLUTION_PREFERENCE = env.str("STRMNTR_RESOLUTION_PREF", 'closest')
 
-# Video files will be saved with the specified extension.
-# For example, if '.mkv' is used, the file will be saved in the mkv format and you will be able to
-# watch it while it's being downloaded.
-# Also, if someting goes wrong, you will still be able to play the partially downloaded mkv file, 
-# as opposed to a mp4 file.
-VIDEO_FILE_EXTENSION = '.mkv'
+# Specify output container here
+# Suggested values are 'mkv' or 'mp4'
+CONTAINER = env.str("STRMNTR_CONTAINER", 'mp4')
+
+# Add auto-generated VR format suffix to files
+VR_FORMAT_SUFFIX = env.bool("STRMNTR_VR_FORMAT_SUFFIX", True)
+
+# Set ffmpeg readrate to whatever works for you.
+# Usually this should be either 0, 1 or 1.3 depending on the network
+# Setting it to 0 can result in very fragmented recordings.
+# 1 can result in skipped segments
+# 1.3 should be the sweet spot but use what works
+FFMPEG_READRATE = env.int("STRMNTR_FFMPEG_READRATE", 1.3)
+
+# Specify the segment time in seconds
+# If None, the video will be downloaded as a single file
+# Example:
+# 5 minutes
+# SEGMENT_TIME = 300
+# 1 hour
+# SEGMENT_TIME = 3600
+# Also see the ffmpeg documentation for the segment_time option
+# You can specify time in hh:mm:ss format
+# Example:
+# 1 hour
+# SEGMENT_TIME = '1:00:00'
+SEGMENT_TIME = env.str("STRMNTR_SEGMENT_TIME", None)
+
+# HTTP Manager configuration
+
+# Bind address for the web server
+# 0.0.0.0 for remote access from all host
+WEBSERVER_HOST = env.str("STRMNTR_HOST", "127.0.0.1")
+WEBSERVER_PORT = env.int("STRMNTR_PORT", 5000)
+
+# Web UI skin
+# Available options:
+# - kseen715 - 2nd skin, currently broken
+# - truck-kun (default) - 3rd skin, row oriented
+# - shaftoverflow - 4th skin, card layout, links in menus
+WEBSERVER_SKIN = env.str("STRMNTR_SKIN", "truck-kun")
+
+# set frequency in seconds of how often the streamer list will update
+WEB_LIST_FREQUENCY = env.int("STRMNTR_LIST_FREQ", 30)
+
+# set frequency in seconds of how often the streamer's status will update on the recording page
+WEB_STATUS_FREQUENCY = env.int("STRMNTR_STATUS_FREQ", 5)
+
+# set theater_mode
+WEB_THEATER_MODE = env.bool("STRMNTR_THEATER_MODE", False)
+
+# confirm deletes, default to mobile-only.
+# set to empty string to disable
+# set to "MOBILE" to explicitly confirm deletes only on mobile
+# set to any other non-falsy value to always check
+WEB_CONFIRM_DELETES = env.str("STRMNTR_CONFIRM_DEL", "MOBILE")
+
+# Password for the web server
+# If empty no auth required, else username admin and choosen password
+WEBSERVER_PASSWORD = env.str("STRMNTR_PASSWORD", "admin")

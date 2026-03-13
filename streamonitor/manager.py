@@ -6,8 +6,10 @@ import terminaltables.terminal_io
 from terminaltables import AsciiTable
 import streamonitor.config as config
 import streamonitor.log as log
-from streamonitor.bot import Bot
+from streamonitor.bot import Bot, LOADED_SITES
 from streamonitor.managers.outofspace_detector import OOSDetector
+
+from streamonitor.enums import Status
 
 
 class Manager(Thread):
@@ -61,8 +63,8 @@ class Manager(Thread):
                 streamer.restart()
                 self.saveConfig()
                 return "Added [" + streamer.siteslug + "] " + streamer.username
-            except:
-                return "Failed to add"
+            except Exception as e:
+                return f"Failed to add: {e}"
         else:
             return "Missing value(s)"
 
@@ -119,6 +121,12 @@ class Manager(Thread):
                 self.logger.error(e)
                 return "Failed to stop"
 
+    def do_restart(self, streamer, username, site):
+        if not streamer:
+            return "Streamer not found"
+        self.do_stop(streamer, username, site)
+        return self.do_start(streamer, username, site)
+        
     def do_status(self, streamer, username, site):
         output = [["Username", "Site", "Started", "Status"]]
 
@@ -136,13 +144,13 @@ class Manager(Thread):
         return "Status:\n" + f'Free space: {str(round(OOSDetector.free_space(), 3))}%\n\n' + AsciiTable(output).table
 
     def do_status2(self, streamer, username, site):
-        maxlen = max([len(s.username) for s in self.streamers])
+        maxlen = max([len(s.username) for s in self.streamers] or [0])
         termwidth = terminaltables.terminal_io.terminal_size()[0]
         table_nx = math.floor(termwidth/(maxlen+3))
         output = ''
         output += 'Status:\n'
 
-        for site in Bot.loaded_sites:
+        for site in LOADED_SITES:
             output += site.site + '\n'
             output += ('+' + '-'*(maxlen+2))*table_nx + '+\n'
             site_name = site.site
@@ -152,9 +160,9 @@ class Manager(Thread):
                     output += '!'
                     status_color = None
                     status = streamer.sc
-                    if status == Bot.Status.PUBLIC: status_color = 'green'
-                    if status == Bot.Status.PRIVATE: status_color = 'magenta'
-                    if status == Bot.Status.ERROR: status_color = 'red'
+                    if status == Status.PUBLIC: status_color = 'green'
+                    if status == Status.PRIVATE: status_color = 'magenta'
+                    if status == Status.ERROR: status_color = 'red'
                     if not streamer.running: status_color = 'grey'
                     output += colored(' ' + streamer.username + ' '*(maxlen-len(streamer.username)) + ' ', status_color)
                     i += 1

@@ -1,31 +1,32 @@
 import requests
 from streamonitor.bot import Bot
+from streamonitor.enums import Status
 
 
 class CamsCom(Bot):
     site = 'CamsCom'
     siteslug = 'CC'
 
+    def getWebsiteURL(self):
+        return "https://cams.com/" + self.username
+
     def getVideoUrl(self):
         return f'https://camscdn.cams.com/camscdn/cdn-{self.username.lower()}.m3u8'
 
     def getStatus(self):
-        r = requests.get(f'https://beta-api.cams.com/models/stream/{self.username}/')
+        r = self.session.get(f'https://beta-api.cams.com/models/stream/{self.username}/')
         self.lastInfo = r.json()
         
         if 'stream_name' not in self.lastInfo:
-            return Bot.Status.NOTEXIST
+            return Status.NOTEXIST
         if self.lastInfo['online'] == '0':
-            return Bot.Status.OFFLINE
+            return Status.OFFLINE
         if self.lastInfo['online'] == '1':
-            return Bot.Status.PUBLIC
+            return Status.PUBLIC
         if self.lastInfo['online'] is not None:
-            return Bot.Status.PRIVATE
+            return Status.PRIVATE
             
-        return Bot.Status.UNKNOWN
-
-
-Bot.loaded_sites.add(CamsCom)
+        return Status.UNKNOWN
 
 # Known online flag states:
 # 0: Offline

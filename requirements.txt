@@ -7,5 +7,8 @@ beautifulsoup4
 websocket-client
 ffmpy
 m3u8
-curl_cffi
 fake-useragent
+django-environ
+pycurl
+pycurl-requests
+curl_cffi
