@@ -31,10 +31,16 @@ def getVideoFfmpeg(self, url, filename):
         '-max_reload', '20',
         '-seg_max_retry', '20',
         '-m3u8_hold_counters', '20',
-        '-i', url,
-        '-c:a', 'copy',
-        '-c:v', 'copy',
     ])
+
+    # Handle CMAF with separate audio/video URLs
+    if isinstance(url, tuple):
+        video_url, audio_url = url
+        cmd.extend(['-i', video_url, '-i', audio_url])
+        cmd.extend(['-c:v', 'copy', '-c:a', 'copy', '-map', '0:v:0', '-map', '1:a:0'])
+    else:
+        cmd.extend(['-i', url])
+        cmd.extend(['-c:a', 'copy', '-c:v', 'copy'])
 
     suffix = ''
     if hasattr(self, 'filename_extra_suffix'):

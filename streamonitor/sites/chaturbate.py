@@ -1,7 +1,10 @@
 import re
+import m3u8
 import requests
+from urllib.parse import urljoin
 from streamonitor.bot import Bot
 from streamonitor.enums import Status, Gender
+from parameters import WANTED_RESOLUTION, WANTED_RESOLUTION_PREFERENCE
 
 
 class Chaturbate(Bot):
@@ -30,11 +33,56 @@ class Chaturbate(Bot):
         url = self.lastInfo['url']
         if not url:
             return None
+
+        if 'llhls.m3u8' in url:
+            return self._getCmafPlaylist(url)
+
         if self.lastInfo.get('cmaf_edge'):
             url = url.replace('playlist.m3u8', 'playlist_sfm4s.m3u8')
             url = re.sub('live-.+amlst', 'live-c-fhls/amlst', url)
 
         return self.getWantedResolutionPlaylist(url)
+
+    def _getCmafPlaylist(self, url):
+        result = self.session.get(url, headers=self.headers)
+        master = m3u8.loads(result.text)
+
+        audio_uris = {}
+        for media in master.media:
+            if media.type == 'AUDIO':
+                audio_uris[media.group_id] = urljoin(url, media.uri)
+
+        variants = []
+        for playlist in master.playlists:
+            stream_info = playlist.stream_info
+            resolution = stream_info.resolution if type(stream_info.resolution) is tuple else (0, 0)
+            audio_group = getattr(stream_info, 'audio', None)
+            variants.append({
+                'url': urljoin(url, playlist.uri),
+                'resolution': resolution,
+                'bandwidth': stream_info.bandwidth,
+                'audio_url': audio_uris.get(audio_group) if audio_group else None
+            })
+
+        if not variants:
+            return url
+
+        for variant in variants:
+            w, h = variant['resolution']
+            if w < h:
+                variant['resolution_diff'] = w - WANTED_RESOLUTION
+            else:
+                variant['resolution_diff'] = h - WANTED_RESOLUTION
+
+        variants.sort(key=lambda a: abs(a['resolution_diff']))
+
+        if WANTED_RESOLUTION_PREFERENCE == 'exact':
+            selected = next((v for v in variants if abs(v['resolution_diff']) == 0), variants[0])
+        else:
+            selected = variants[0]
+
+        self.logger.info(f"Selected {selected['resolution'][0]}x{selected['resolution'][1]} resolution (CMAF)")
+        return (selected['url'], selected['audio_url'])
     
     @staticmethod
     def _parseStatus(status):
