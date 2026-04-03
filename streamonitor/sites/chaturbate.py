@@ -34,7 +34,6 @@ class Chaturbate(Bot):
         if not url:
             return None
 
-        # CMAF/llhls format - select resolution and get both audio and video chunklists
         if 'llhls.m3u8' in url:
             return self._getCmafPlaylist(url)
 
@@ -45,17 +44,14 @@ class Chaturbate(Bot):
         return self.getWantedResolutionPlaylist(url)
 
     def _getCmafPlaylist(self, url):
-        # Fetch master playlist to find variants and audio URLs
         result = self.session.get(url, headers=self.headers)
         master = m3u8.loads(result.text)
 
-        # Build audio URI map from #EXT-X-MEDIA
         audio_uris = {}
         for media in master.media:
             if media.type == 'AUDIO':
                 audio_uris[media.group_id] = urljoin(url, media.uri)
 
-        # Find video variant by resolution
         variants = []
         for playlist in master.playlists:
             stream_info = playlist.stream_info
@@ -68,9 +64,8 @@ class Chaturbate(Bot):
                 'audio_url': audio_uris.get(audio_group) if audio_group else None
             })
 
-        # Select variant by resolution
         if not variants:
-            return url  # Fallback to master
+            return url
 
         for variant in variants:
             w, h = variant['resolution']

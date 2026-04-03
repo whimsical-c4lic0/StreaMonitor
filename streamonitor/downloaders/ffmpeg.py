@@ -37,7 +37,6 @@ def getVideoFfmpeg(self, url, filename):
     if isinstance(url, tuple):
         video_url, audio_url = url
         cmd.extend(['-i', video_url, '-i', audio_url])
-        # Use complex filter to mux video and audio
         cmd.extend(['-c:v', 'copy', '-c:a', 'copy', '-map', '0:v:0', '-map', '1:a:0'])
     else:
         cmd.extend(['-i', url])
