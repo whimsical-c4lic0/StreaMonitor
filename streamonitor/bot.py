@@ -75,7 +75,9 @@ class Bot(Thread):
         self.username = username
         self.logger = self.getLogger()
 
-        self.session = requests.Session()
+        # Impersonate a browser: some sites (e.g. camsoda) reject curl_cffi's default
+        # fingerprint with a 403, which would otherwise surface as a false rate limit.
+        self.session = requests.Session(impersonate="chrome")
         self.session.headers.update(self.headers)
         self.cookies = None
         self.cookieUpdater = None
