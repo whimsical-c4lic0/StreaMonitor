@@ -32,6 +32,11 @@ WANTED_RESOLUTION_PREFERENCE = env.str("STRMNTR_RESOLUTION_PREF", 'closest')
 # Suggested values are 'mkv' or 'mp4'
 CONTAINER = env.str("STRMNTR_CONTAINER", 'mp4')
 
+# Rewrite Chaturbate's LL-HLS master playlist to a temporary local playlist so
+# ffmpeg can align the separate audio and video renditions. Disable this to pass
+# the original master URL to ffmpeg instead (no resolution selection).
+CB_MASTER_PLAYLIST = env.bool("STRMNTR_CB_MASTER_PLAYLIST", True)
+
 # Add auto-generated VR format suffix to files
 VR_FORMAT_SUFFIX = env.bool("STRMNTR_VR_FORMAT_SUFFIX", True)
 

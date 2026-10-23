@@ -1,10 +1,15 @@
+import os
 import re
+import tempfile
+from pathlib import Path
+from urllib.parse import urljoin
+
 import m3u8
 import requests
-from urllib.parse import urljoin
+
 from streamonitor.bot import Bot
 from streamonitor.enums import Status, Gender
-from parameters import WANTED_RESOLUTION, WANTED_RESOLUTION_PREFERENCE
+from parameters import CB_MASTER_PLAYLIST
 
 
 class Chaturbate(Bot):
@@ -44,45 +49,127 @@ class Chaturbate(Bot):
         return self.getWantedResolutionPlaylist(url)
 
     def _getCmafPlaylist(self, url):
-        result = self.session.get(url, headers=self.headers)
-        master = m3u8.loads(result.text)
-
-        audio_uris = {}
-        for media in master.media:
-            if media.type == 'AUDIO':
-                audio_uris[media.group_id] = urljoin(url, media.uri)
-
-        variants = []
-        for playlist in master.playlists:
-            stream_info = playlist.stream_info
-            resolution = stream_info.resolution if type(stream_info.resolution) is tuple else (0, 0)
-            audio_group = getattr(stream_info, 'audio', None)
-            variants.append({
-                'url': urljoin(url, playlist.uri),
-                'resolution': resolution,
-                'bandwidth': stream_info.bandwidth,
-                'audio_url': audio_uris.get(audio_group) if audio_group else None
-            })
-
-        if not variants:
+        if not CB_MASTER_PLAYLIST:
+            self.logger.debug("CMAF master playlist rewrite disabled, using master URL")
             return url
 
-        for variant in variants:
-            w, h = variant['resolution']
-            if w < h:
-                variant['resolution_diff'] = w - WANTED_RESOLUTION
-            else:
-                variant['resolution_diff'] = h - WANTED_RESOLUTION
+        try:
+            result = self.session.get(url, headers=self.headers, cookies=self.cookies, timeout=10)
+            if result.status_code != 200:
+                self.logger.warning(
+                    f"Could not fetch CMAF master playlist (HTTP {result.status_code}), falling back to master URL")
+                return url
 
-        variants.sort(key=lambda a: abs(a['resolution_diff']))
+            master = m3u8.loads(result.text)
+            if not master.is_variant:
+                self.logger.debug("CMAF playlist is not a master playlist, falling back to its URL")
+                return url
 
-        if WANTED_RESOLUTION_PREFERENCE == 'exact':
-            selected = next((v for v in variants if abs(v['resolution_diff']) == 0), variants[0])
-        else:
-            selected = variants[0]
+            audio_media = {}
+            for media in master.media:
+                if media.type != 'AUDIO' or not media.uri:
+                    continue
+                audio_media[media.group_id] = {
+                    'group_id': media.group_id,
+                    'name': media.name,
+                    'channels': getattr(media, 'channels', None),
+                    'uri': urljoin(url, media.uri),
+                }
 
-        self.logger.info(f"Selected {selected['resolution'][0]}x{selected['resolution'][1]} resolution (CMAF)")
-        return (selected['url'], selected['audio_url'])
+            variants = []
+            for playlist in master.playlists:
+                stream_info = playlist.stream_info
+                resolution = stream_info.resolution if type(stream_info.resolution) is tuple else (0, 0)
+                variants.append({
+                    'url': urljoin(url, playlist.uri),
+                    'resolution': resolution,
+                    'frame_rate': stream_info.frame_rate,
+                    'bandwidth': stream_info.bandwidth,
+                    'codecs': getattr(stream_info, 'codecs', None),
+                    'audio_group': getattr(stream_info, 'audio', None),
+                })
+
+            if not variants:
+                self.logger.warning("CMAF master playlist has no variants, falling back to master URL")
+                return url
+
+            selected = self._selectSource(variants)
+            if selected is None:
+                return url
+
+            if selected['resolution'][1] != 0:
+                frame_rate = ''
+                if selected['frame_rate'] is not None and selected['frame_rate'] != 0:
+                    frame_rate = f" {selected['frame_rate']}fps"
+                self.logger.info(
+                    f"Selected {selected['resolution'][0]}x{selected['resolution'][1]}{frame_rate} resolution (CMAF)")
+
+            audio_group = selected['audio_group']
+            media = audio_media.get(audio_group) if audio_group else None
+            if media is None:
+                self.logger.warning(
+                    "No matching audio group in CMAF master playlist, falling back to master URL")
+                return url
+
+            content = self._buildMasterPlaylist(master, selected, media)
+            return self._writeMasterPlaylist(content)
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to build local CMAF master playlist ({e}), falling back to master URL")
+            return url
+
+    @staticmethod
+    def _buildMasterPlaylist(master, variant, media):
+        lines = ['#EXTM3U']
+
+        version = getattr(master, 'version', None)
+        if version:
+            lines.append(f'#EXT-X-VERSION:{version}')
+        lines.append('#EXT-X-INDEPENDENT-SEGMENTS')
+
+        media_attrs = [
+            'TYPE=AUDIO',
+            f'GROUP-ID="{media["group_id"]}"',
+        ]
+        if media.get('name'):
+            media_attrs.append(f'NAME="{media["name"]}"')
+        media_attrs.extend(['DEFAULT=YES', 'AUTOSELECT=YES', 'FORCED=NO'])
+        if media.get('channels'):
+            media_attrs.append(f'CHANNELS="{media["channels"]}"')
+        media_attrs.append(f'URI="{media["uri"]}"')
+        lines.append('#EXT-X-MEDIA:' + ','.join(media_attrs))
+
+        stream_attrs = [f'BANDWIDTH={variant["bandwidth"]}']
+        width, height = variant['resolution']
+        if width and height:
+            stream_attrs.append(f'RESOLUTION={width}x{height}')
+        frame_rate = variant.get('frame_rate')
+        if frame_rate:
+            try:
+                stream_attrs.append(f'FRAME-RATE={float(frame_rate):.3f}')
+            except (TypeError, ValueError):
+                stream_attrs.append(f'FRAME-RATE={frame_rate}')
+        if variant.get('codecs'):
+            stream_attrs.append(f'CODECS="{variant["codecs"]}"')
+        stream_attrs.append(f'AUDIO="{variant["audio_group"]}"')
+        lines.append('#EXT-X-STREAM-INF:' + ','.join(stream_attrs))
+        lines.append(variant['url'])
+
+        return '\n'.join(lines) + '\n'
+
+    @staticmethod
+    def _writeMasterPlaylist(content):
+        fd, path = tempfile.mkstemp(prefix='streamonitor-cb-', suffix='.m3u8')
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as playlist_file:
+                playlist_file.write(content)
+        except BaseException:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+            raise
+        return Path(path)
     
     @staticmethod
     def _parseStatus(status):

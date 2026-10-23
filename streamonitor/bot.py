@@ -327,47 +327,52 @@ class Bot(Thread):
             return None
         return sources  # [(url, (width, height)),...]
 
+    def _selectSource(self, sources):
+        if not sources:
+            self.logger.error("No available sources")
+            return None
+
+        for source in sources:
+            width, height = source['resolution']
+            if width < height:
+                source['resolution_diff'] = width - WANTED_RESOLUTION
+            else:
+                source['resolution_diff'] = height - WANTED_RESOLUTION
+
+        sources.sort(key=lambda a: abs(a['resolution_diff']))
+        selected_source = None
+
+        if WANTED_RESOLUTION_PREFERENCE == 'exact':
+            if sources[0]['resolution_diff'] == 0:
+                selected_source = sources[0]
+        elif WANTED_RESOLUTION_PREFERENCE == 'closest' or len(sources) == 1:
+            selected_source = sources[0]
+        elif WANTED_RESOLUTION_PREFERENCE == 'exact_or_least_higher':
+            for source in sources:
+                if source['resolution_diff'] >= 0:
+                    selected_source = source
+                    break
+        elif WANTED_RESOLUTION_PREFERENCE == 'exact_or_highest_lower':
+            for source in sources:
+                if source['resolution_diff'] <= 0:
+                    selected_source = source
+                    break
+        else:
+            self.logger.error('Invalid value for WANTED_RESOLUTION_PREFERENCE')
+            return None
+
+        if selected_source is None:
+            self.logger.error("Couldn't select a resolution")
+        return selected_source
+
     def getWantedResolutionPlaylist(self, url):
         try:
             sources = self.getPlaylistVariants(url)
             if sources is None:
                 return None
 
-            if len(sources) == 0:
-                self.logger.error("No available sources")
-                return None
-
-            for source in sources:
-                width, height = source['resolution']
-                if width < height:
-                    source['resolution_diff'] = width - WANTED_RESOLUTION
-                else:
-                    source['resolution_diff'] = height - WANTED_RESOLUTION
-
-            sources.sort(key=lambda a: abs(a['resolution_diff']))
-            selected_source = None
-
-            if WANTED_RESOLUTION_PREFERENCE == 'exact':
-                if sources[0]['resolution_diff'] == 0:
-                    selected_source = sources[0]
-            elif WANTED_RESOLUTION_PREFERENCE == 'closest' or len(sources) == 1:
-                selected_source = sources[0]
-            elif WANTED_RESOLUTION_PREFERENCE == 'exact_or_least_higher':
-                for source in sources:
-                    if source['resolution_diff'] >= 0:
-                        selected_source = source
-                        break
-            elif WANTED_RESOLUTION_PREFERENCE == 'exact_or_highest_lower':
-                for source in sources:
-                    if source['resolution_diff'] <= 0:
-                        selected_source = source
-                        break
-            else:
-                self.logger.error('Invalid value for WANTED_RESOLUTION_PREFERENCE')
-                return None
-
+            selected_source = self._selectSource(sources)
             if selected_source is None:
-                self.logger.error("Couldn't select a resolution")
                 return None
 
             if selected_source['resolution'][1] != 0:
