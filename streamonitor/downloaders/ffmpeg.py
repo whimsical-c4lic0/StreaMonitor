@@ -43,11 +43,14 @@ def getVideoFfmpeg(self, url, filename):
     if FFMPEG_READRATE:
         cmd.extend(['-readrate', f'{FFMPEG_READRATE!s}'])
 
-    cmd.extend([
-        '-max_reload', '20',
-        '-seg_max_retry', '20',
-        '-m3u8_hold_counters', '20',
-    ])
+    # These are HLS demuxer options. FFmpeg refuses to start when they are
+    # passed for a non-HLS input (e.g. AmateurTV's progressive fMP4 stream).
+    if is_local_playlist or '.m3u8' in str(url).lower():
+        cmd.extend([
+            '-max_reload', '20',
+            '-seg_max_retry', '20',
+            '-m3u8_hold_counters', '20',
+        ])
 
     # CMAF master playlists are written to a local temporary file so ffmpeg can
     # align the separate audio and video renditions by program date time.
