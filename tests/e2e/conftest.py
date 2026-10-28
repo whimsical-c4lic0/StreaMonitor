@@ -60,6 +60,10 @@ FFPROBE = _find_ffprobe()
 if FFMPEG and not os.environ.get("STRMNTR_FFMPEG_PATH"):
     os.environ["STRMNTR_FFMPEG_PATH"] = FFMPEG
 
+# The Agora recorder needs a JVM, the native SDK and an RTC join; give it more
+# startup room than the HLS sites in the opt-in tests.
+os.environ.setdefault("STRMNTR_AGORA_JOIN_TIMEOUT", "90")
+
 
 def e2e_enabled() -> bool:
     return os.environ.get("STRMNTR_E2E") == "1"

@@ -21,6 +21,8 @@ import pytest
 from curl_cffi import requests as curl_requests
 
 from streamonitor.bot import RoomIdBot
+from streamonitor.downloaders.agora import AgoraStream
+from streamonitor.downloaders.agora_webrtc import AgoraWebRTCBackend
 from streamonitor.enums import Status
 from streamonitor.sites import (
     AmateurTV,
@@ -29,7 +31,6 @@ from streamonitor.sites import (
     CamsCom,
     CamSoda,
     Chaturbate,
-    CherryTV,
     DreamCam,
     DreamCamVR,
     FanslyLive,
@@ -54,7 +55,6 @@ ALL_SITE_CLASSES = [
     CamsCom,
     CamSoda,
     Chaturbate,
-    CherryTV,
     DreamCam,
     DreamCamVR,
     FanslyLive,
@@ -193,7 +193,9 @@ def _record(bot, url, output_file: Path, seconds: int) -> str | None:
     thread = Thread(target=run, name=f"e2e-record-{bot.siteslug}", daemon=True)
     thread.start()
 
-    deadline = time.monotonic() + min(60, max(25, seconds * 2))
+    deadline = time.monotonic() + (
+        120 if isinstance(url, AgoraStream) else min(60, max(25, seconds * 2))
+    )
     first_data_at = None
     while time.monotonic() < deadline:
         if _active_media(folder):
@@ -327,6 +329,11 @@ def test_live_site_records_video_and_audio(
     assert bot.sc == Status.PUBLIC, f"expected PUBLIC, got {bot.sc}"
     url = bot.getVideoUrl()
     assert url is not None, f"{site_cls.siteslug}/{bot.username} returned no video URL"
+    if isinstance(url, AgoraStream) and not AgoraWebRTCBackend.available():
+        pytest.skip(
+            "the Agora WebRTC recorder dependencies are missing; install "
+            "requirements.txt (or use the Docker image)"
+        )
 
     output_file = Path(bot.genOutFilename())
     folder = Path(bot.outputFolder)

@@ -18,6 +18,7 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Callable
+from urllib.parse import quote
 
 from curl_cffi import requests as curl_requests
 
@@ -205,9 +206,31 @@ def _discover_fansly() -> list[LiveCandidate]:
 
 def _discover_manyvids() -> list[LiveCandidate]:
     session = _session()
-    html = _get(session, "https://www.manyvids.com/live").text
-    usernames = re.findall(r'href="/Profile/\d+/([^/"?]+)/live"', html)
-    return [LiveCandidate(username) for username in _unique(usernames)]
+    headers = {
+        "Referer": "https://www.manyvids.com/live/online",
+        "Origin": "https://www.manyvids.com",
+    }
+    candidates: list[LiveCandidate] = []
+    next_token = None
+    # The creators API is cursor-paginated.  One page of 300 is normally enough;
+    # follow a couple of cursors so a quiet night still has candidates.
+    for _ in range(3):
+        url = "https://api.manyvids.com/live/creators?sortBy=rank&limit=300&status=online"
+        if next_token:
+            url += "&next_token=" + quote(str(next_token), safe="")
+        data = _json(session, url, headers=headers)
+        for creator in data.get("creators", []):
+            if (
+                creator.get("live_status") == "ONLINE"
+                and creator.get("session_type") == "PUBLIC"
+                and creator.get("url_handle")
+            ):
+                candidates.append(LiveCandidate(
+                    creator["url_handle"], str(creator.get("user_id")) or None))
+        next_token = data.get("next_token")
+        if not next_token:
+            break
+    return _unique_candidates(candidates)
 
 
 def _discover_myfreecams() -> list[LiveCandidate]:
@@ -292,10 +315,6 @@ DISCOVERERS: dict[str, Callable[[], list[LiveCandidate]]] = {
     "SM": _discover_streamate,
     "SC": _discover_stripchat_2d,
     "SCVR": _discover_stripchat_vr,
-    "CHTV": _unsupported(
-        "Cherry.tv is listed as unsupported (Agora) and its API is behind "
-        "Cloudflare; set STRMNTR_E2E_MODEL_CHTV to a known model to test it"
-    ),
     "F4F": _unsupported(
         "Flirt4Free live-model discovery is not implemented; set "
         "STRMNTR_E2E_MODEL_F4F to a known model to test it"

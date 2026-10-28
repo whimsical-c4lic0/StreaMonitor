@@ -15,6 +15,7 @@ Inspired by [Recordurbate](https://github.com/oliverjrose99/Recordurbate)
 | DreamCam VR   | `DCVR`       |                             | for VR videos          | No                    |
 | FanslyLive    | `FL`         |                             |                        | Yes                   |
 | Flirt4Free    | `F4F`        |                             |                        | Yes                   |
+| ManyVids Live | `MV`         |                             |                        | Yes (high/low)         |
 | MyFreeCams    | `MFC`        |                             |                        | Yes                   |
 | SexChat.hu    | `SCHU`       |                             | use the id as username | No                    |
 | StreaMate     | `SM`         | PornHubLive, PepperCams,... |                        | Yes                   |
@@ -24,10 +25,8 @@ Inspired by [Recordurbate](https://github.com/oliverjrose99/Recordurbate)
 
 Currently not supported:
 * Amateur.TV (They use Widevine now)
-* Cherry.tv (They switched to Agora)
 * ImLive (Too strict captcha protection for scraping)
 * LiveJasmin (No nudity in free streams)
-* ManyVids Live (They switched to Agora)
 
 There are hundreds of clones of the sites above, you can read about them on [this site](https://adultwebcam.site/clone-sites-by-platform/).
 
@@ -94,6 +93,9 @@ When you set the WEBSERVER_HOST it is also accesible to from other computers in 
 
 You can run this application in docker. I prefer docker-compose so I included an example docker-compose.yml file that you can use.
 Simply start it in the folder with `docker-compose up`.
+
+The image includes everything needed for the supported sites, with no extra
+host setup.
 
 ## Configuration
 

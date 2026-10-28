@@ -1,4 +1,6 @@
 import os.path
+import sys
+
 import environ
 from fake_useragent import UserAgent
 
@@ -60,6 +62,35 @@ FFMPEG_READRATE = env.int("STRMNTR_FFMPEG_READRATE", 1.3)
 # 1 hour
 # SEGMENT_TIME = '1:00:00'
 SEGMENT_TIME = env.str("STRMNTR_SEGMENT_TIME", None)
+
+# Agora recording (ManyVids)
+#
+# The recorder joins Agora's browser WebRTC gateway from a Python subprocess
+# (aiortc + PyAV).  No Agora native SDK, Java or Maven is required.
+#   webrtc - Python WebRTC gateway worker (recommended)
+AGORA_BACKEND = env.str("STRMNTR_AGORA_BACKEND", "webrtc")
+
+# Python used to run the recorder worker.  Defaults to the interpreter running
+# StreamMonitor so the worker sees the same installed packages.
+AGORA_PYTHON = env.str("STRMNTR_AGORA_PYTHON", sys.executable)
+
+# Agora exposes simulcast high and low streams; pick one here.
+AGORA_STREAM_TYPE = env.str("STRMNTR_AGORA_STREAM", "high")
+
+# Seconds to wait for the recorder to join a channel and receive its first
+# media frame before the downloader gives up.
+AGORA_JOIN_TIMEOUT = env.int("STRMNTR_AGORA_JOIN_TIMEOUT", 45)
+
+# Seconds to wait for a graceful recorder shutdown before killing it.
+AGORA_STOP_TIMEOUT = env.int("STRMNTR_AGORA_STOP_TIMEOUT", 15)
+
+# Hard limit in seconds for one recording segment; 0 disables the limit.
+AGORA_MAX_DURATION = env.int("STRMNTR_AGORA_MAX_DURATION", 0)
+
+# Renew a channel token this many seconds before it expires. If the refreshed
+# credentials change the channel or uid, the current file is finalized and a
+# new segment is started.
+AGORA_TOKEN_REFRESH_MARGIN = env.int("STRMNTR_AGORA_TOKEN_MARGIN", 300)
 
 # HTTP Manager configuration
 
