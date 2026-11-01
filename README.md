@@ -101,6 +101,8 @@ host setup.
 
 You can set some parameters in the [parameters.py](parameters.py).
 
+If a recording is interrupted (network error, stalled ffmpeg, expired stream URL), the next attempt continues in a part file and the parts are merged into a single video when the show ends. `STRMNTR_FFMPEG_STALL_TIMEOUT` (default `45` seconds, `0` disables it) stops ffmpeg when it stops producing output so the recording can resume.
+
 You also have to add decryption keys yourself for StripChat in the `stripchat_mouflon_keys.json` file.
 
 ## Disclaimer
