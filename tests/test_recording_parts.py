@@ -288,7 +288,11 @@ def testMp4OutputIsFragmentedSoPartsSurviveKills(tmp_path, monkeypatch):
                    str(tmp_path / "tester-20260101-000000.mp4"))
 
     args = args_file.read_text().splitlines()
-    assert args[args.index("-movflags") + 1] == "+frag_keyframe+empty_moov"
+    flags = args[args.index("-movflags") + 1]
+    assert flags == "+frag_keyframe"
+    # +empty_moov disables ffmpeg's automatic bitstream filtering, which
+    # breaks ADTS AAC streams (Cam4 and other MPEG-TS HLS sources).
+    assert "empty_moov" not in flags
 
 
 def testOtherContainersAreNotFragmented(tmp_path, monkeypatch):

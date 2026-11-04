@@ -100,8 +100,14 @@ def getVideoFfmpeg(self, url, filename):
         # to stay readable on its own. Fragmented mp4 keeps the index in front
         # of every fragment, unlike a regular mp4 that is unplayable when
         # ffmpeg is killed before it writes the index.
+        #
+        # Do not add +empty_moov here: it makes ffmpeg disable automatic
+        # bitstream filtering, so ADTS AAC streams (Cam4 and other MPEG-TS
+        # HLS sources) cannot be muxed into mp4. +frag_keyframe alone keeps
+        # interrupted recordings playable and leaves the automatic
+        # aac_adtstoasc filter enabled.
         if CONTAINER == 'mp4':
-            cmd.extend(['-movflags', '+frag_keyframe+empty_moov'])
+            cmd.extend(['-movflags', '+frag_keyframe'])
         cmd.extend([output_path])
 
     class _Stopper:

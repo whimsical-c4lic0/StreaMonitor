@@ -364,6 +364,13 @@ def test_live_site_records_video_and_audio(
         )
 
     details = _probe_and_decode(path, ffprobe_bin, ffmpeg_bin)
+    raw_duration = details["format"].get("duration")
+    duration = float(raw_duration) if raw_duration not in (None, "N/A") else 0.0
+    minimum = max(2.0, record_seconds * 0.5)
+    assert duration >= minimum, (
+        f"{site_cls.siteslug}/{bot.username}: recording is only {duration:.2f}s "
+        f"(expected at least {minimum:.1f}s); files={media}"
+    )
     print(
         f"[e2e] {site_cls.siteslug}/{bot.username}: "
         f"{path.name} ({details['size']} bytes, "
