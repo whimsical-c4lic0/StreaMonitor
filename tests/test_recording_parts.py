@@ -323,3 +323,177 @@ def testReadrateIsPassedWhenConfigured(tmp_path, monkeypatch):
 
     args = args_file.read_text().splitlines()
     assert args[args.index("-readrate") + 1] == "1.3"
+
+
+def makeRecoveryBot(tmp_path, monkeypatch, container="mkv"):
+    """Bot whose download folder holds files left by a killed process."""
+    bot = object.__new__(Bot)
+    bot.username = "tester"
+    bot.siteslug = "cb"
+    bot.logger = logging.getLogger("test-recording-recovery")
+    bot.recording_base = None
+    bot.recording_parts = []
+    bot.video_files = []
+    bot.video_files_total_size = 0
+    folder = tmp_path / "tester [cb]"
+    folder.mkdir(exist_ok=True)
+    monkeypatch.setattr(bot_module, "DOWNLOADS_DIR", str(tmp_path))
+    monkeypatch.setattr(bot_module, "CONTAINER", container)
+    monkeypatch.setattr(bot_module, "FFMPEG_PATH", FFMPEG)
+    monkeypatch.setattr(bot_module, "SEGMENT_TIME", None)
+    return bot, folder
+
+
+def writeTs(path, seconds=1):
+    subprocess.run(
+        [FFMPEG, "-hide_banner", "-loglevel", "error", "-y",
+         "-f", "lavfi", "-i", f"testsrc=size=160x120:rate=15:duration={seconds}",
+         "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}",
+         "-c:v", "mpeg2video", "-c:a", "mp2", "-shortest",
+         "-f", "mpegts", str(path)],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+
+
+def testRecoveryMergesOrphanedPartsOnStartup(tmp_path, monkeypatch):
+    if not FFMPEG or not FFPROBE:
+        pytest.skip("ffmpeg and ffprobe are required")
+
+    bot, folder = makeRecoveryBot(tmp_path, monkeypatch)
+    base = folder / "tester-20260101-000000.mkv"
+    first = folder / "tester-20260101-000000.part1.mkv"
+    second = folder / "tester-20260101-000000.part2.mkv"
+    writeVideo(str(base), 1)
+    writeVideo(str(first), 1)
+    writeVideo(str(second), 1)
+
+    bot.recoverOrphanedRecordings()
+
+    assert os.path.exists(base)
+    assert not first.exists()
+    assert not second.exists()
+    assert probeDuration(str(base)) == pytest.approx(3.0, abs=0.7)
+
+
+def testRecoveryKeepsSingleOrphanPartAsBase(tmp_path, monkeypatch):
+    if not FFMPEG or not FFPROBE:
+        pytest.skip("ffmpeg and ffprobe are required")
+
+    bot, folder = makeRecoveryBot(tmp_path, monkeypatch)
+    base = folder / "tester-20260101-000000.mkv"
+    part = folder / "tester-20260101-000000.part1.mkv"
+    writeVideo(str(part), 1)
+
+    bot.recoverOrphanedRecordings()
+
+    assert base.exists()
+    assert not part.exists()
+    assert probeDuration(str(base)) == pytest.approx(1.0, abs=0.5)
+
+
+def canReadMpegts(tmp_path):
+    """Some static ffmpeg builds crash on MPEG-TS input; skip the real remux."""
+    if not FFMPEG:
+        return False
+    sample = tmp_path / "probe.tmp.ts"
+    writeTs(sample, seconds=1)
+    result = subprocess.run(
+        [FFMPEG, "-v", "error", "-i", str(sample), "-f", "null", "-"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    sample.unlink()
+    return result.returncode == 0
+
+
+def testRecoveryRemuxesInterruptedTempDownload(tmp_path, monkeypatch):
+    if not FFPROBE or not canReadMpegts(tmp_path):
+        pytest.skip("ffmpeg with a working MPEG-TS demuxer is required")
+
+    bot, folder = makeRecoveryBot(tmp_path, monkeypatch)
+    temp = folder / "tester-20260101-000000.tmp.ts"
+    writeTs(temp, seconds=1)
+
+    bot.recoverOrphanedRecordings()
+
+    target = folder / "tester-20260101-000000.mkv"
+    assert target.exists()
+    assert not temp.exists()
+    assert probeDuration(str(target)) == pytest.approx(1.0, abs=0.5)
+
+
+def testRecoveryRemuxesTempIntoRecordingName(tmp_path, monkeypatch):
+    """The temp file becomes a normal recording, then joins the show."""
+    bot, folder = makeRecoveryBot(tmp_path, monkeypatch)
+    fake = makeFakeFfmpeg(
+        tmp_path,
+        'prev=""; in=""; out=""\n'
+        'for a in "$@"; do\n'
+        '  [ "$prev" = "-i" ] && in="$a"\n'
+        '  out="$a"; prev="$a"\n'
+        'done\n'
+        'cp "$in" "$out"')
+    monkeypatch.setattr(bot_module, "FFMPEG_PATH", fake)
+
+    temp = folder / "tester-20260101-000000.tmp.ts"
+    temp.write_bytes(b"raw-ts-bytes")
+
+    bot.recoverOrphanedRecordings()
+
+    target = folder / "tester-20260101-000000.mkv"
+    assert target.read_bytes() == b"raw-ts-bytes"
+    assert not temp.exists()
+
+
+def testRecoveryMergesInterruptedTempPartIntoShow(tmp_path, monkeypatch):
+    if not FFPROBE or not canReadMpegts(tmp_path):
+        pytest.skip("ffmpeg with a working MPEG-TS demuxer is required")
+
+    bot, folder = makeRecoveryBot(tmp_path, monkeypatch)
+    base = folder / "tester-20260101-000000.mkv"
+    temp = folder / "tester-20260101-000000.part1.tmp.ts"
+    writeVideo(str(base), 1)
+    writeTs(temp, seconds=1)
+
+    bot.recoverOrphanedRecordings()
+
+    assert not temp.exists()
+    assert probeDuration(str(base)) == pytest.approx(2.0, abs=0.7)
+
+
+def testRecoveryDropsEmptyTempFileAndMergeLeftovers(tmp_path, monkeypatch):
+    bot, folder = makeRecoveryBot(tmp_path, monkeypatch)
+    temp = folder / "tester-20260101-000000.tmp.ts"
+    temp.touch()
+    concat = folder / "tester-20260101-000000.concat.txt"
+    concat.write_text("file 'x'\n")
+    merged = folder / "tester-20260101-000000.merged.mkv"
+    merged.write_bytes(b"partial")
+
+    bot.recoverOrphanedRecordings()
+
+    assert not temp.exists()
+    assert not concat.exists()
+    assert not merged.exists()
+
+
+def testRecoveryLeavesFinishedRecordingsAlone(tmp_path, monkeypatch):
+    bot, folder = makeRecoveryBot(tmp_path, monkeypatch)
+    finished = folder / "tester-20260101-000000.mkv"
+    finished.write_bytes(b"already fine")
+    mtime = finished.stat().st_mtime
+
+    bot.recoverOrphanedRecordings()
+
+    assert finished.read_bytes() == b"already fine"
+    assert finished.stat().st_mtime == mtime
+
+
+def testRecoveryRunsOnlyOnce(tmp_path, monkeypatch):
+    bot, folder = makeRecoveryBot(tmp_path, monkeypatch)
+    scans = []
+    monkeypatch.setattr(
+        bot, "_orphanedPartGroups",
+        lambda folder: scans.append(folder) or {})
+
+    bot.recoverOrphanedRecordings()
+    bot.recoverOrphanedRecordings()
+
+    assert len(scans) == 1

@@ -81,6 +81,7 @@ def getVideoNativeHLS(self, url, filename, m3u_processor=None):
         return False
 
     # Post-processing
+    output_path = filename
     try:
         stdout = open(filename + '.postprocess_stdout.log', 'w+') if DEBUG else subprocess.DEVNULL
         stderr = open(filename + '.postprocess_stderr.log', 'w+') if DEBUG else subprocess.DEVNULL
@@ -90,12 +91,22 @@ def getVideoNativeHLS(self, url, filename, m3u_processor=None):
             output_str += f' -f segment -reset_timestamps 1 -segment_time {str(SEGMENT_TIME)}'
             if hasattr(self, 'filename_extra_suffix'):
                 suffix = self.filename_extra_suffix
-            filename = filename[:-len('.' + CONTAINER)] + '_%03d' + suffix + '.' + CONTAINER
-        ff = FFmpeg(executable=FFMPEG_PATH, inputs={tmpfilename: None}, outputs={filename: output_str})
+            output_path = filename[:-len('.' + CONTAINER)] + '_%03d' + suffix + '.' + CONTAINER
+        ff = FFmpeg(executable=FFMPEG_PATH, inputs={tmpfilename: None}, outputs={output_path: output_str})
         ff.run(stdout=stdout, stderr=stderr)
-        os.remove(tmpfilename)
     except FFRuntimeError as e:
         if e.exit_code and e.exit_code != 255:
             return False
+        # 255 means ffmpeg was killed, usually by a stop request or a
+        # shutdown. The temp file still holds every downloaded segment, so it
+        # is kept for recoverOrphanedRecordings() instead of being discarded.
+        if SEGMENT_TIME is not None:
+            return True
+        return os.path.exists(output_path) and os.path.getsize(output_path) > 0
 
+    # The remux succeeded, so the raw segments are no longer needed.
+    try:
+        os.remove(tmpfilename)
+    except OSError:
+        pass
     return True

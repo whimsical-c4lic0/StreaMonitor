@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 import os
+import re
 import subprocess
 import time
 import traceback
@@ -103,6 +104,7 @@ class Bot(Thread):
         # into recording_base once the show is over.
         self.recording_base = None
         self.recording_parts = []
+        self._recoveredRecordings = False
         self.cache_file_list()
 
         self.gender = None
@@ -241,7 +243,14 @@ class Bot(Thread):
         self.recording_parts = []
         if not base or not parts:
             return
+        self._consolidateParts(base, parts)
 
+    def _consolidateParts(self, base, parts):
+        """Drop empty parts and merge the rest into ``base``.
+
+        Shared by the normal end-of-show merge and the recovery of parts a
+        killed process left behind.
+        """
         existing = []
         for part in parts:
             try:
@@ -326,6 +335,152 @@ class Bot(Thread):
                     except OSError:
                         pass
 
+    # Recording file naming used by the downloaders, plus the part suffix
+    # applied by nextRecordingFilename().
+    _PART_PATTERN = re.compile(r'^(?P<stem>.+)\.part(?P<number>\d+)(?P<ext>\.[^.]+)$')
+    # Raw MPEG-TS the HLS downloader keeps until ffmpeg remuxes it.
+    _TEMP_SUFFIX = '.tmp.ts'
+
+    def _orphanedPartGroups(self, folder):
+        """Group leftover ``<show>.partN.<ext>`` files by their target file.
+
+        Returns ``{base_path: [part_paths]}`` with the base recording first
+        (when it exists) and the parts in ascending part number.
+        """
+        groups = {}
+        try:
+            entries = list(os.scandir(folder))
+        except OSError:
+            return groups
+        for entry in entries:
+            match = self._PART_PATTERN.match(entry.name)
+            if not match or not entry.is_file():
+                continue
+            base = os.path.join(folder, match.group('stem') + match.group('ext'))
+            groups.setdefault(base, []).append(
+                (int(match.group('number')), entry.path))
+        result = {}
+        for base, numbered in groups.items():
+            parts = []
+            if os.path.isfile(base):
+                parts.append(base)
+            parts.extend(path for _, path in sorted(numbered))
+            result[base] = parts
+        return result
+
+    def _hasSegmentFiles(self, path):
+        """True when ffmpeg already wrote ``<stem>_NNN.<ext>`` segments."""
+        folder, name = os.path.split(path)
+        stem = os.path.splitext(name)[0] + '_'
+        ext = os.path.splitext(name)[1]
+        try:
+            entries = os.scandir(folder)
+        except OSError:
+            return False
+        with entries as iterator:
+            for entry in iterator:
+                if entry.name.startswith(stem) and entry.name.endswith(ext):
+                    return True
+        return False
+
+    def _recoverTempRecording(self, temp_path):
+        """Remux a native HLS download that was never turned into a video.
+
+        ``getVideoNativeHLS`` keeps raw MPEG-TS in ``<show>.tmp.ts`` until
+        ffmpeg remuxes it. A kill during the download leaves the file behind
+        and the recorded bytes would otherwise never be playable.
+        """
+        target = temp_path[:-len(self._TEMP_SUFFIX)] + '.' + CONTAINER
+        if self._hasSegmentFiles(target):
+            # SEGMENT_TIME splits the show into separate segment files; the
+            # temp file is only the source for ffmpeg and does not belong in
+            # the folder as an extra full recording.
+            self.log(f'Keeping {os.path.basename(temp_path)}, '
+                     'the show was already split into segment files')
+            return False
+        try:
+            temp_size = os.path.getsize(temp_path)
+        except OSError:
+            return False
+        if temp_size == 0:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+            return False
+        try:
+            target_size = os.path.getsize(target)
+        except OSError:
+            target_size = 0
+        if target_size >= temp_size:
+            # A finished remux keeps the larger, playable file.
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+            return True
+
+        result = subprocess.run(
+            [FFMPEG_PATH, '-hide_banner', '-loglevel', 'error', '-y',
+             '-i', temp_path, '-c', 'copy', target],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        if result.returncode != 0 or not os.path.exists(target) or os.path.getsize(target) == 0:
+            output = result.stderr.decode('utf-8', 'replace').strip().splitlines()
+            self.logger.warning(
+                f'Could not recover {os.path.basename(temp_path)}, keeping it: '
+                + (output[-1] if output else 'unknown error'))
+            return False
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+        self.log(f'Recovered {os.path.basename(target)} from an interrupted download')
+        return True
+
+    def recoverOrphanedRecordings(self):
+        """Finish recordings a previous process left behind.
+
+        ``recording_base`` and ``recording_parts`` only live in memory, so a
+        crash or container restart strands part files and raw HLS temp files
+        in the download folder. Called once when the bot thread starts.
+        """
+        if getattr(self, '_recoveredRecordings', False):
+            return
+        self._recoveredRecordings = True
+        folder = self.outputFolder
+        if not os.path.isdir(folder):
+            return
+
+        try:
+            for entry in list(os.scandir(folder)):
+                if not entry.is_file():
+                    continue
+                if entry.name.endswith(self._TEMP_SUFFIX):
+                    try:
+                        self._recoverTempRecording(entry.path)
+                    except Exception as e:
+                        self.logger.exception(e)
+                elif os.path.splitext(entry.name)[0].endswith('.merged') \
+                        or entry.name.endswith('.concat.txt'):
+                    # Left over from a merge that was killed. The parts are
+                    # still there, so the merge below rebuilds it.
+                    try:
+                        os.unlink(entry.path)
+                    except OSError:
+                        pass
+        except OSError as e:
+            self.logger.warning(e)
+            return
+
+        for base, parts in self._orphanedPartGroups(folder).items():
+            try:
+                self._consolidateParts(base, parts)
+            except Exception as e:
+                self.logger.exception(e)
+        try:
+            self.cache_file_list()
+        except Exception as e:
+            self.logger.exception(e)
 
     def _sleep(self, time):
         while time > 0:
@@ -340,6 +495,11 @@ class Bot(Thread):
                 sleep(1)
             if self.quitting:
                 break
+
+            try:
+                self.recoverOrphanedRecordings()
+            except Exception as e:
+                self.logger.exception(e)
 
             offline_time = self.long_offline_timeout + 1  # Don't start polling when streamer was offline at start
             while self.running:
