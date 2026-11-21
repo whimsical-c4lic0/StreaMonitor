@@ -2,6 +2,7 @@ import urllib.parse
 from bs4 import BeautifulSoup
 from streamonitor.bot import Bot
 from streamonitor.enums import Status
+from parameters import CMAF_MASTER_PLAYLIST
 
 
 class MyFreeCams(Bot):
@@ -31,11 +32,11 @@ class MyFreeCams(Bot):
         sid = self.attrs['data-cam-preview-server-id-value']
         mid = 100000000 + int(self.attrs['data-cam-preview-model-id-value'])
         a = 'a_' if self.attrs['data-cam-preview-is-wzobs-value'] == 'true' else ''
-        playlist_url = f"https://previews.myfreecams.com/hls/NxServer/{sid}/ngrp:mfc_{a}{mid}.f4v_mobile_mhp1080_previewurl/playlist.m3u8"
+        playlist_url = f"https://edgevideo.myfreecams.com/llhls/NxServer/{sid}/ngrp:mfc_{a}{mid}.f4v_cmaf/playlist_cmaf.m3u8"
         r = self.session.get(playlist_url)
         if r.status_code != 200:
             return None
-        return self.getWantedResolutionPlaylist(playlist_url)
+        return self.getCmafPlaylist(playlist_url, enabled=CMAF_MASTER_PLAYLIST, master_text=r.text)
 
     def getStatus(self):
         r = self.session.get(f'https://share.myfreecams.com/{self.username}')
