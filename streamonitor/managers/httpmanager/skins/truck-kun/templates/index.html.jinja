@@ -15,10 +15,6 @@
             <button type="button" class="quiet" data-action="reset-filters">Reset</button>
         </form>
         <div class="list-tools"><details class="list-options"><summary>List options</summary><div class="options-popover">
-            <label>Sort by<select id="sort_by" name="sort_by" class="filter-streamers-state" hx-get="/refresh/streamers" hx-trigger="change" hx-include=".filter-streamers-state" hx-target="#streamers" hx-sync="#streamers:queue last">
-                {% for key, label in [('username','Username'),('site','Site'),('running','Monitoring'),('status','Status'),('last_stream','Last stream'),('video_files_total_size','Storage'),('video_files_count','Recording count')] %}<option value="{{ key }}" {{ 'selected' if sort_by == key }}>{{ label }}</option>{% endfor %}
-            </select></label>
-            <label>Order<select id="sort_dir" name="sort_dir" class="filter-streamers-state" hx-get="/refresh/streamers" hx-trigger="change" hx-include=".filter-streamers-state" hx-target="#streamers" hx-sync="#streamers:queue last"><option value="asc" {{ 'selected' if sort_dir != 'desc' }}>Ascending</option><option value="desc" {{ 'selected' if sort_dir == 'desc' }}>Descending</option></select></label>
             <button type="button" hx-patch="/start/streamers" hx-target="#streamers" hx-include=".filter-streamers-state" hx-disabled-elt="this" hx-sync="#streamers:queue last">Resume all shown</button>
             <button type="button" hx-patch="/stop/streamers" hx-target="#streamers" hx-include=".filter-streamers-state" hx-disabled-elt="this" hx-sync="#streamers:queue last">Pause all shown</button>
         </div></details><span class="muted">Select a streamer to view recordings</span></div>
