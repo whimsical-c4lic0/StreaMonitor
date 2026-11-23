@@ -1,4 +1,5 @@
 """Offline integration coverage for the default server-rendered web skin."""
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -208,3 +209,46 @@ def test_template_files_compile(ui):
     app, _ = ui
     for name in app.jinja_env.list_templates():
         app.jinja_env.get_template(name)
+
+
+@pytest.mark.parametrize("key", ["username", "status", "last_stream", "video_files_total_size", "running"])
+def test_column_headings_toggle_sort_and_preserve_state(ui, key):
+    app, manager = ui
+    first = manager.streamers[0]
+    first.last_stream = 100
+    second = FakeStreamer("zzz_streamer", running=False, recording=True)
+    second.last_stream = 200
+    manager.streamers.append(second)
+    client = app.test_client()
+    page = soup(client.get("/"))
+    assert not page.select("select[name=sort_by], select[name=sort_dir]")
+
+    def heading(page):
+        return next(button for button in page.select("th .column-sort")
+                    if json.loads(button["hx-vals"])["sort_by"] == key)
+
+    # A different column starts ascending; the active column reverses direction.
+    params = json.loads(heading(page)["hx-vals"])
+    assert params["sort_dir"] == ("desc" if key == "username" else "asc")
+    orders = []
+    for _ in range(2):
+        button = heading(page)
+        assert button["type"] == "button"
+        assert button["hx-include"] == ".filter-streamers-state"
+        params = json.loads(button["hx-vals"])
+        page = soup(client.get(button["hx-get"], query_string=params))
+        assert heading(page).parent["aria-sort"] == ("ascending" if params["sort_dir"] == "asc" else "descending")
+        assert len(page.select("th[aria-sort]")) == 1
+        assert page.select_one("#sort_by")["value"] == key
+        assert page.select_one("#sort_dir")["value"] == params["sort_dir"]
+        orders.append([name.text for name in page.select(".streamer-name")])
+    assert orders[0] == list(reversed(orders[1]))
+
+    # Cookies and hidden inputs keep the heading state on reloads and refreshes.
+    page = soup(client.get("/"))
+    assert page.select_one("#sort_by")["value"] == key
+    state = {field["name"]: field["value"] for field in page.select("input[type=hidden].filter-streamers-state")}
+    page = soup(client.get("/refresh/streamers", query_string={**state, "filter-username": "zzz"}))
+    assert [name.text for name in page.select(".streamer-name")] == ["zzz_streamer"]
+    assert page.select_one("#sort_by")["value"] == key
+    assert json.loads(heading(page)["hx-vals"])["sort_dir"] != state["sort_dir"]

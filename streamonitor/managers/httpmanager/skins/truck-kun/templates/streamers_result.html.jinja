@@ -1,5 +1,23 @@
+{% macro sortable_header(key, label, detail=false) %}
+{% set active = sort_by == key %}
+{% set next_dir = 'desc' if active and sort_dir == 'asc' else 'asc' %}
+<th scope="col"{% if detail %} class="desktop-detail"{% endif %}{% if active %} aria-sort="{{ 'descending' if sort_dir == 'desc' else 'ascending' }}"{% endif %}>
+    <button type="button" class="column-sort" hx-get="/refresh/streamers" hx-target="#streamers" hx-swap="innerHTML" hx-sync="#streamers:queue last" hx-include=".filter-streamers-state" hx-vals='{{ {"sort_by": key, "sort_dir": next_dir}|tojson }}' aria-label="Sort by {{ label }}, {{ 'descending' if next_dir == 'desc' else 'ascending' }}">
+        {{ label }}<span class="sort-indicator" aria-hidden="true">{{ ('↓' if sort_dir == 'desc' else '↑') if active else '↕' }}</span>
+    </button>
+</th>
+{% endmacro %}
+<input type="hidden" id="sort_by" name="sort_by" class="filter-streamers-state" value="{{ sort_by or '' }}">
+<input type="hidden" id="sort_dir" name="sort_dir" class="filter-streamers-state" value="{{ sort_dir or 'asc' }}">
 <div class="streamer-results" data-free-space="{{ ui_free_space }}" data-total-space="{{ ui_total_space }}">
-<table class="streamers-list"><thead><tr><th scope="col">Streamer</th><th scope="col">Status</th><th scope="col" class="desktop-detail">Last stream</th><th scope="col" class="desktop-detail">Storage</th><th scope="col">Monitoring</th><th scope="col"><span class="sr-only">More actions</span></th></tr></thead><tbody>
+<table class="streamers-list"><thead><tr>
+    {{ sortable_header('username', 'Streamer') }}
+    {{ sortable_header('status', 'Status') }}
+    {{ sortable_header('last_stream', 'Last stream', true) }}
+    {{ sortable_header('video_files_total_size', 'Storage', true) }}
+    {{ sortable_header('running', 'Monitoring') }}
+    <th scope="col"><span class="sr-only">More actions</span></th>
+</tr></thead><tbody>
 {% for streamer in streamers %}{% set streamer_has_error = false %}{% include 'streamer_record.html.jinja' %}
 {% else %}<tr><td colspan="6"><div class="empty-state"><h2>{{ 'No matching streamers' if is_filtered else 'No streamers yet' }}</h2><p class="muted">{{ 'Try a different search or reset your filters.' if is_filtered else 'Add a streamer to start monitoring and saving recordings.' }}</p><button type="button" data-action="{{ 'reset-filters' if is_filtered else 'open-add' }}">{{ 'Reset filters' if is_filtered else '+ Add streamer' }}</button></div></td></tr>{% endfor %}
 </tbody></table></div>
