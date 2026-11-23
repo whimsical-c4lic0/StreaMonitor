@@ -2,7 +2,7 @@
 
 Run with::
 
-    STRMNTR_E2E=1 .venv/bin/pytest tests/e2e -v
+    STRMNTR_E2E=1 uv run pytest tests/e2e -v
 
 The tests are intentionally skipped during a normal ``pytest`` run: they visit
 live adult streaming sites and download a short sample for every reachable
@@ -331,8 +331,8 @@ def test_live_site_records_video_and_audio(
     assert url is not None, f"{site_cls.siteslug}/{bot.username} returned no video URL"
     if isinstance(url, AgoraStream) and not AgoraWebRTCBackend.available():
         pytest.skip(
-            "the Agora WebRTC recorder dependencies are missing; install "
-            "requirements.txt (or use the Docker image)"
+            "the Agora WebRTC recorder dependencies are missing; run "
+            "`uv sync` (or use the Docker image)"
         )
 
     output_file = Path(bot.genOutFilename())

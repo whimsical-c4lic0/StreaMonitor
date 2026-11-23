@@ -6,3 +6,5 @@ venv
 config.json
 Dockerfile
 docker-compose.yml
+.venv
+.python-version

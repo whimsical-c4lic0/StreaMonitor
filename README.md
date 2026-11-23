@@ -32,7 +32,7 @@ There are hundreds of clones of the sites above, you can read about them on [thi
 
 ## Requirements
 * Python 3
-  * Install packages listed in requirements.txt with pip.
+  * Install the project dependencies with [uv](https://docs.astral.sh/uv/): `uv sync`.
 * FFmpeg
 
 ## Usage
