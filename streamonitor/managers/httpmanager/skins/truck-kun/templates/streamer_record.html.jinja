@@ -1,73 +1,17 @@
 {% if streamer is not none %}
 <tr id="streamer-{{ streamer.siteslug|lower }}-{{ streamer.username }}" class="streamer">
-    <td class="icon-container">
-        <div title="{{ streamer.sc | status_text }}" class="status-indicator {{ streamer | status_icon_class }}">
-            <i class="icon feather icon-{{ streamer | status_icon_class }}"></i>
-        </div>
-    </td>
-    <td class="site-container">
-        <a class="streamer-link link-fill" target="_blank" href="{{ streamer.url }}">
-            <span class="link-text">{{ streamer.site }}</span><span class="mobile-link-text">{{ streamer.siteslug }}</span>
-        </a>
-    </td>
-    <td class="flag-container">
-        <h1 title="{{ streamer.country_data.name }}">{{ streamer.country_data.flag }}</h1>
-    </td>
-    <td class="gender-container">
-        <h1 title="{{ streamer.gender_data.name }}">{{ streamer.gender_data.icon }}</h1>
-    </td>
-    <td class="streamer-container"><a class="link-fill" href="/recordings/{{ streamer.username }}/{{ streamer.site }}">{{ streamer.username }}</a></td>
-    <td class="streamer-will-record">
-        <span class="recording-status {{'not-recording' if not streamer.running }}">{% if streamer.running %}Yes{% else %}No{% endif %}</span>
-        <button class="{{'pause-btn' if streamer.running else 'record-btn' }}"
-            hx-patch="/toggle/{{ streamer.username }}/{{ streamer.site }}"
-            hx-trigger="click"
-            hx-target="closest .streamer"
-            hx-sync="closest .streamer:replace"
-            hx-swap="outerHTML"
-            hx-disabled-elt="this">
-            {% if streamer.running %}
-                <span>Pause</span>
-                <i class="icon feather icon-pause-circle"></i>
-            {% else %}
-                <span>Resume</span>
-                <i class="icon feather icon-play-circle"></i>
-            {% endif %}
-        </button>
-    </td>
-    <td class="center">{{ streamer.sc | status_text }}</td>
-    <td class="center last-stream-cell" title="{{ streamer.last_stream | abstime }}">{{ streamer.last_stream | reltime }}</td>
-    <td class="right-align">{{ streamer.video_files_total_size | tohumanfilesize(fix_decimals=2) }}</td>
-    <td class="right-align">{{ streamer.video_files | count }}</td>
-    <td class="center">
-        <button hx-get="/streamer-info/{{ streamer.username }}/{{ streamer.site }}"
-            hx-trigger="click"
-            hx-target="closest .streamer"
-            hx-sync="closest .streamer:replace"
-            hx-swap="outerHTML"
-            hx-disabled-elt="this">
-            <i class="icon feather icon-refresh-cw"></i>
-        </button>
-    </td>
-    <td class="center">
-        <button hx-delete="/remove/{{ streamer.username }}/{{ streamer.site }}"
-            hx-trigger="click"
-            hx-target="closest .streamer"
-            hx-sync="closest .streamer:replace"
-            hx-swap="outerHTML"
-            {{ 'hx-confirm="Are you sure you want to remove {streamer}?"'.format(streamer=streamer.username) if confirm_deletes }}
-            hx-disabled-elt="this"
-            class="modify-streamers delete-streamer">
-            <i class="icon feather icon-trash-2"></i>
-        </button>
-    </td>
+    <td class="streamer-identity"><a class="streamer-name" href="{{ url_for('recordings', user=streamer.username, site=streamer.site) }}">{{ streamer.username }}</a><div class="streamer-meta"><span>{{ streamer.site }}</span><span>·</span><span>{{ streamer.video_files|count }} recordings</span></div></td>
+    <td class="streamer-status"><span class="status-pill {{ 'is-recording' if streamer.recording }}">{% if streamer.recording %}<span class="status-dot" aria-hidden="true"></span>Recording{% elif not streamer.running %}Paused{% else %}{{ streamer.sc|status_text }}{% endif %}</span></td>
+    <td class="desktop-detail muted" title="{{ streamer.last_stream|abstime }}">{{ streamer.last_stream|reltime }}</td>
+    <td class="desktop-detail muted">{{ streamer.video_files_total_size|tohumanfilesize }}</td>
+    <td class="streamer-monitor"><button type="button" hx-patch="{{ url_for('toggle_streamer', user=streamer.username, site=streamer.site) }}" hx-target="closest .streamer" hx-sync="#streamers:queue last" hx-swap="outerHTML" hx-disabled-elt="this" aria-label="{{ 'Pause' if streamer.running else 'Resume' }} monitoring {{ streamer.username }}">{{ 'Pause' if streamer.running else 'Resume' }}</button></td>
+    <td class="streamer-more"><details><summary class="icon-button" aria-label="More actions for {{ streamer.username }}">···</summary><div class="options-popover">
+        <a href="{{ streamer.url }}" target="_blank" rel="noopener noreferrer">Open room ↗</a>
+        <span class="muted">{{ streamer.country_data.flag }} {{ streamer.country_data.name }} · {{ streamer.gender_data.name }}</span>
+        <span class="muted">Last stream: {{ streamer.last_stream|reltime }}</span><span class="muted">{{ streamer.video_files_total_size|tohumanfilesize }} saved</span>
+        <button type="button" hx-get="{{ url_for('get_streamer_info', user=streamer.username, site=streamer.site) }}" hx-target="closest .streamer" hx-swap="outerHTML" hx-sync="#streamers:queue last" hx-disabled-elt="this">Refresh streamer</button>
+        <button type="button" class="danger-text" hx-delete="{{ url_for('remove_streamer', user=streamer.username, site=streamer.site) }}" hx-target="closest .streamer" hx-swap="outerHTML" hx-sync="#streamers:queue last" hx-confirm="Remove {{ streamer.username }} from monitoring? Saved recordings will not be deleted." hx-disabled-elt="this">Remove streamer</button>
+    </div></details></td>
 </tr>
 {% endif %}
-{% if streamer_has_error %}
-<div id="error-container" hx-swap-oob="true">
-    <div class="error-modal">
-        <span>{{ streamer_error_message }}</span>
-        <button hx-delete="/clear" hx-swap="outerHTML" hx-target="closest .error-modal" hx-trigger="click">dismiss</button>
-    </div>
-</div>
-{% endif %}
+{% if streamer_has_error %}<div id="error-container" hx-swap-oob="true" role="alert"><div class="error-modal"><span>{{ streamer_error_message }}</span><button type="button" data-action="dismiss-error">Dismiss</button></div></div>{% endif %}

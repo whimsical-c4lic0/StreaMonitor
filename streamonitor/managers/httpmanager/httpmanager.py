@@ -51,6 +51,19 @@ class HTTPManager(Manager):
         app.add_template_filter(reltime, name='reltime')
         app.add_template_filter(abstime, name='abstime')
 
+        @app.context_processor
+        def skin_context():
+            if self.skin != 'truck-kun':
+                return {}
+            usage = OOSDetector.space_usage()
+            return {
+                'ui_free_space': human_file_size(usage.free),
+                'ui_total_space': human_file_size(usage.total),
+                'ui_recording': sum(bool(s.recording) for s in self.streamers),
+                'ui_monitored': sum(bool(s.running) for s in self.streamers),
+                'ui_offline': sum(s.sc in (Status.OFFLINE, Status.LONG_OFFLINE) for s in self.streamers),
+            }
+
         def check_auth(username, password):
             return WEBSERVER_PASSWORD == "" or (username == 'admin' and compare_digest(password, WEBSERVER_PASSWORD))
 
@@ -231,15 +244,21 @@ class HTTPManager(Manager):
         @app.route("/add", methods=['POST'])
         @login_required
         def add():
-            user = request.form["username"]
-            site = request.form["site"]
+            user = request.form.get("username", "").strip()
+            site = request.form.get("site", "")
             update_site_options = site not in map(lambda x: x.site, self.streamers)
             toast_status = "success"
             status_code = 200
             streamer = self.getStreamer(user, site)
-            res = self.do_add(streamer, user, site)
+            if self.skin == 'truck-kun':
+                if len(user) < 3 or site not in self.loaded_site_names or '/' in user:
+                    res = "Enter a username of at least 3 characters and choose a supported site."
+                else:
+                    res = self.do_add(streamer, user, site, start_monitoring='start_monitoring' in request.form)
+            else:
+                res = self.do_add(streamer, user, site)
             streamers, filter_context = streamer_list(self.streamers, request)
-            if res == 'Streamer already exists' or res == "Missing value(s)" or res == "Failed to add":
+            if not res.startswith("Added ["):
                 toast_status = "error"
                 status_code = 500
             context = {

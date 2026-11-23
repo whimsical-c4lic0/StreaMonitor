@@ -1,121 +1,44 @@
 {% extends "layout.html.jinja" %}
-{% block title %}StreaMonitor - List{% endblock %}
-{% block head %}
-    {{ super() }}
-    <script>
-        function resetFilters() {
-            document
-                .querySelectorAll('.filter-streamers-state')
-                .forEach(el => el.id === 'filter-status' ? el.value = 'all' : el.value = '');
-            htmx.trigger('#filter-streamers', 'afterReset');
-        }
-    </script>
-{% endblock %}
+{% block title %}Streamers · StreaMonitor{% endblock %}
 {% block content %}
-    <div class="title-container">
-        <h1>StreaMonitor</h1>
-        <div class="disk-usage">
-            <span class="du-label">
-                <span class="du-label-free">Free:</span>
-                <span class="du-label-free">Total:</span>
-            </span>
-            <span class="du-space">
-                <span class="du-space-free">{{free_space}}</span>
-                <span class="du-space-total">{{total_space}}</span>
-            </span>
-            <span class="du-percent-free">{{percentage_free}}%</span>
-        </div>
-    </div>
-    <div>
-        <form hx-post="/add"
-            hx-trigger="submit"
-            hx-target="#streamers"
-            hx-include=".filter-streamers-state:valid"
-            hx-swap="innerHTML settle:3s"
-            hx-sync="#streamers:replace"
-            hx-disabled-elt=".modify-streamers"
-            hx-on:htmx:after-request="this.querySelector('.input-username').value = ''"
-            id="add-streamer-form">
-            <label class="add-streamer-label username-field">
-                <span class="add-streamer-label-text">username:</span>
-                <input class="input-username" type="text" name="username" minlength="3" required="required">
-            </label>
-            <label class="add-streamer-label site-field">
-                <span class="add-streamer-label-text">site:</span>
-                <select name="site" id="site" class="drop-down" required="required">
-                    {% set default_site = streamers[-1].site if streamers|length > 0 else '' %}
-                    {% for site in sites %}
-                        <option value="{{ site }}" {% if site == default_site %}selected="selected"{% endif %}>{{ site }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <div class="submit-form-container">
-                <button type="submit" class="modify-streamers add-streamer">Add</button>
-            </div>
+    <div class="page-heading"><div><h1>Streamers</h1><p class="muted">Manage monitoring and recordings</p></div><button class="primary" type="button" data-action="open-add">+ Add streamer</button></div>
+    {% include 'summary.html.jinja' %}
+    <section class="list-panel" aria-label="Monitored streamers">
+        <form id="filter-streamers" class="filters" autocomplete="off" hx-get="/refresh/streamers" hx-target="#streamers" hx-swap="innerHTML" hx-sync="#streamers:queue last" hx-trigger="submit, input delay:350ms" hx-vals='{"set_filters":"True"}' hx-include=".filter-streamers-state">
+            <label class="search-field"><span class="sr-only">Search streamers by username</span><i class="icon feather icon-search" aria-hidden="true"></i><input type="search" name="filter-username" id="filter-username" class="filter-streamers-state" placeholder="Search streamers…" value="{{ username_filter or '' }}"></label>
+            <label><span class="sr-only">Filter by site</span><select name="filter-site" id="filter-site" class="filter-streamers-state">{% include 'filter_site_options.html.jinja' %}</select></label>
+            <label><span class="sr-only">Filter by status</span><select name="filter-status" id="filter-status" class="filter-streamers-state">
+                <option value="all" {{ 'selected' if not status_filter or status_filter == 'all' }}>All statuses</option>
+                <option value="running" {{ 'selected' if status_filter == 'running' }}>Monitored</option><option value="rec" {{ 'selected' if status_filter == 'rec' }}>Recording</option>
+                {% for status, label in streamer_statuses.items() %}<option value="{{ status.value }}" {{ 'selected' if status_filter == status.value|string }}>{{ label.split(',')[0] }}</option>{% endfor %}
+            </select></label>
+            <button type="button" class="quiet" data-action="reset-filters">Reset</button>
         </form>
-    </div>
-    <div hx-target="#streamers" hx-swap="innerHTML" class="streamers-list-actions">
-        <div class="filter-streamers" id="filter-streamers" hx-vals='{"set_filters": "True"}' hx-sync="#streamers:queue last" hx-trigger="afterReset delay:300ms" hx-get="/refresh/streamers">
-            <input class="hidden-checkbox" hx-on:keyup="if(event.key=='Enter'){this.checked=!this.checked}" id="show-filters" type="checkbox" {{ 'checked' if is_filtered }}>
-            <label class="fake-btn" for="show-filters">
-                Filters<i class="icon feather icon-chevron-up"></i>
-            </label>
-            <form autocomplete="off" hx-validate="false" hx-include=".filter-streamers-state:valid" class="filter-streamers-options">
-                <div class="middle-filter-container">
-                    <div class="inner-filter-container">
-                        <label for="filter-username" class="filter-label filter-flex-group">
-                            <span class="filter-label-text">Username:</span>
-                            <input required type="text" value="{{ username_filter if username_filter }}" name="filter-username" id="filter-username" minlength="1" class="filter-streamers-state" hx-get="/refresh/streamers" hx-trigger="input delay:350ms">
-                        </label>
-                        <label for="filter-site" class="filter-label filter-flex-group">
-                            <span class="filter-label-text">Site:</span>
-                            <select name="filter-site" required class="filter-streamers-state drop-down" id="filter-site" hx-get="/refresh/streamers" hx-trigger="change delay:250ms">
-                                {% include 'filter_site_options.html.jinja' ignore missing with context %}
-                            </select>
-                        </label>
-                        <span class="filter-flex-group multi-item-container">
-                            <label for="filter-status" class="filter-label">
-                                <span class="filter-label-text">Status:</span>
-                                <select name="filter-status" required class="filter-streamers-state drop-down" id="filter-status" hx-get="/refresh/streamers" hx-trigger="change delay:250ms">
-                                    <option value="all" {{'selected="selected"' if status_filter == "all" or not status_filter }}></option>
-                                    <option value="running" {{'selected="selected"' if status_filter == "running"}}>Running</option>
-                                    <option value="rec" {{'selected="selected"' if status_filter == "rec"}}>Recording</option>
-                                    {% for status in streamer_statuses.items() %}
-                                        <option value="{{ status[0].value }}" {{'selected="selected"' if status_filter == (status[0].value|string)}}>{{ status[1].split(',')[0] }}</option>
-                                    {% endfor %}
-                                </select>
-                            </label>
-                            <button type="button" hx-on:click="resetFilters()"><i class="icon feather icon-trash-2"></i></button>
-                        </span>
-                    </div>
-                </div>
-            </form>
+        <div class="list-tools"><details class="list-options"><summary>List options</summary><div class="options-popover">
+            <label>Sort by<select id="sort_by" name="sort_by" class="filter-streamers-state" hx-get="/refresh/streamers" hx-trigger="change" hx-include=".filter-streamers-state" hx-target="#streamers" hx-sync="#streamers:queue last">
+                {% for key, label in [('username','Username'),('site','Site'),('running','Monitoring'),('status','Status'),('last_stream','Last stream'),('video_files_total_size','Storage'),('video_files_count','Recording count')] %}<option value="{{ key }}" {{ 'selected' if sort_by == key }}>{{ label }}</option>{% endfor %}
+            </select></label>
+            <label>Order<select id="sort_dir" name="sort_dir" class="filter-streamers-state" hx-get="/refresh/streamers" hx-trigger="change" hx-include=".filter-streamers-state" hx-target="#streamers" hx-sync="#streamers:queue last"><option value="asc" {{ 'selected' if sort_dir != 'desc' }}>Ascending</option><option value="desc" {{ 'selected' if sort_dir == 'desc' }}>Descending</option></select></label>
+            <button type="button" hx-patch="/start/streamers" hx-target="#streamers" hx-include=".filter-streamers-state" hx-disabled-elt="this" hx-sync="#streamers:queue last">Resume all shown</button>
+            <button type="button" hx-patch="/stop/streamers" hx-target="#streamers" hx-include=".filter-streamers-state" hx-disabled-elt="this" hx-sync="#streamers:queue last">Pause all shown</button>
+        </div></details><span class="muted">Select a streamer to view recordings</span></div>
+        <div id="error-container" role="alert"></div>
+        {% set initial_render = true %}{% set toast_status = 'hide' %}
+        <div id="streamers" {% if refresh_freq and refresh_freq > 0 %}hx-get="/refresh/streamers" hx-trigger="every {{ refresh_freq }}s, refresh" hx-target="this" hx-swap="innerHTML" hx-sync="#streamers:queue last" hx-include=".filter-streamers-state"{% else %}hx-get="/refresh/streamers" hx-trigger="refresh" hx-target="this" hx-sync="#streamers:queue last" hx-include=".filter-streamers-state"{% endif %}>
+            {% include 'streamers_result.html.jinja' %}
         </div>
-        <div class="all-streamers-actions">
-            <button hx-patch="/stop/streamers"
-                hx-trigger="click"
-                hx-include=".filter-streamers-state:valid"
-                hx-swap="innerHTML settle:3s"
-                hx-sync="#streamers:queue first"
-                hx-disabled-elt=".modify-streamers"
-                class="modify-streamers stop-streamers">Stop All</button>
-            <button hx-patch="/start/streamers"
-                hx-trigger="click"
-                hx-include=".filter-streamers-state:valid"
-                hx-swap="innerHTML settle:3s"
-                hx-sync="#streamers:queue first"
-                hx-disabled-elt=".modify-streamers"
-                class="modify-streamers start-streamers">Start All</button>
-        </div>
-    </div>
-    <div id="error-container">
-    </div>
-    {% set toast_status = 'hide' %}
-    {% set toast_message = '' %}
-    {% set refresh_interval = 'hx-swap="innerHTML" hx-get="/refresh/streamers" hx-sync="#streamers:abort" hx-include=".filter-streamers-state:valid" hx-trigger="every {interval}s"'.format(interval=refresh_freq) %}
-    <div id="streamers" {{ refresh_interval|safe if refresh_freq and refresh_freq > 0}}>
-        {% include 'streamers_result.html.jinja' ignore missing with context %}
-    </div>
-    <div id="toast-notifications">
-    </div>
+    </section>
+    <dialog id="add-dialog" class="add-drawer" aria-labelledby="add-title">
+        <form id="add-streamer-form" hx-post="/add" hx-target="#streamers" hx-swap="innerHTML" hx-include=".filter-streamers-state" hx-sync="#streamers:queue last" hx-disabled-elt="find button[type='submit']">
+            <div class="drawer-heading"><h2 id="add-title">Add streamer</h2><button type="button" class="icon-button" data-action="close-add" aria-label="Close add streamer">×</button></div>
+            <div class="drawer-fields"><p class="muted">Save a streamer and choose when to start monitoring.</p>
+                <label for="site">Site</label><select name="site" id="site" required autofocus>{% for site in sites %}<option value="{{ site }}">{{ site }}</option>{% endfor %}</select>
+                <label for="username">Username</label><input id="username" class="input-username" type="text" name="username" minlength="3" required autocomplete="off" spellcheck="false" aria-describedby="username-help">
+                <p id="username-help" class="field-help">Enter the username from the room URL, not the full URL. Match the site's spelling and capitalization.</p>
+                <label class="checkbox-label"><input type="checkbox" name="start_monitoring" value="1" checked> Start monitoring immediately</label>
+                <p id="add-error" class="form-error" role="alert" hidden></p>
+            </div>
+            <div class="drawer-footer"><button type="button" data-action="close-add">Cancel</button><button type="submit" class="primary">Add streamer</button></div>
+        </form>
+    </dialog>
 {% endblock %}

@@ -2,22 +2,33 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="htmx-config" content='{"useTemplateFragments":"true", "responseHandling": [{"code": "[45]..", "swap": true, "error": true}, {"code": "...", "swap": true}], "methodsThatUseUrlParams": ["get", "delete", "patch"]}'>
-    <link rel="stylesheet" type="text/css" href="/static/streamonitor@truck-kun/style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="htmx-config" content='{"useTemplateFragments":true,"responseHandling":[{"code":"204","swap":false},{"code":"[45]..","swap":true,"error":true},{"code":"...","swap":true}],"methodsThatUseUrlParams":["get","delete","patch"]}'>
+    <link rel="stylesheet" href="{{ url_for('static', filename='streamonitor@truck-kun/style.css') }}">
     <title>{% block title %}StreaMonitor{% endblock %}</title>
     {% block head %}
-        <script src="/static/htmx@2.0.4/htmx.min.js"></script>
-        <link rel="stylesheet" href="{{ url_for('static', filename='fonts/iconfont.css') }}">
+    <script src="{{ url_for('static', filename='htmx@2.0.4/htmx.min.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='streamonitor@truck-kun/app.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/iconfont.css') }}">
     {% endblock %}
 </head>
 <body>
-    {% block nav %}{% endblock %}
-    <div id="content">
-        {% block content %}{% endblock %}
+    <a class="skip-link" href="#content">Skip to content</a>
+    <header class="app-header"><div class="header-inner">
+        <a class="brand" href="/">StreaMonitor</a>
+        <div class="header-meta"><span class="storage-desktop" data-storage>{{ ui_free_space }} available / {{ ui_total_space }}</span>
+        <span id="freshness">Last updated just now</span></div>
+    </div></header>
+    <div class="refresh-warning" id="refresh-warning" role="status" hidden>Could not refresh. Showing last available data. <button type="button" data-action="retry">Retry</button></div>
+    <div class="page-shell">
+        {% block nav %}{% endblock %}
+        <main id="content" tabindex="-1">{% block content %}{% endblock %}</main>
+        <footer class="storage-mobile" data-storage>{{ ui_free_space }} available / {{ ui_total_space }}</footer>
     </div>
+    <div id="toast-notifications" role="status" aria-live="polite"></div>
+    <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title">
+        <h2 id="confirm-title">Confirm deletion</h2><p id="confirm-message"></p>
+        <div class="dialog-actions"><button type="button" data-action="cancel-confirm" autofocus>Cancel</button><button type="button" class="danger" data-action="accept-confirm">Delete</button></div>
+    </dialog>
 </body>
 </html>
