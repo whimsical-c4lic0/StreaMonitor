@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM python:3.14-alpine3.23
+FROM python:3.15-alpine3.23
 
 ENV PYCURL_SSL_LIBRARY=openssl \
     UV_COMPILE_BYTECODE=1 \
