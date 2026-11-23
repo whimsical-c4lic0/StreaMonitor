@@ -1,0 +1,32 @@
+[project]
+name = "streamonitor"
+version = "0.1.0"
+description = "Monitor and record live streams from various websites."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aiortc",
+    "av",
+    "beautifulsoup4",
+    "curl_cffi",
+    "django-environ",
+    "fake-useragent",
+    "ffmpy",
+    "flask",
+    "m3u8",
+    "numpy",
+    "pycurl",
+    "pycurl-requests",
+    "pyzmq",
+    "requests",
+    "termcolor",
+    "terminaltables",
+    "websocket-client",
+    "websockets",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.uv]
+package = false

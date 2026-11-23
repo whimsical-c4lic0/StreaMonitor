@@ -18,22 +18,21 @@ Each test:
 `STRMNTR_FFMPEG_PATH` at `ffmpeg`; the sibling `ffprobe` is found
 automatically, or set `STRMNTR_FFPROBE_PATH` explicitly.
 
-ManyVids recordings use the Python Agora WebRTC worker.  Install the normal
-requirements (or run the tests inside the Docker image); the ManyVids test
-skips with a clear reason when `aiortc`, `av`, `numpy` or `websockets` is
+ManyVids recordings use the Python Agora WebRTC worker. Install the project
+dependencies with uv (or run the tests inside the Docker image); the ManyVids
+test skips with a clear reason when `aiortc`, `av`, `numpy` or `websockets` is
 missing.
 
 Install the application and test dependencies:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-test.txt
+uv sync
 ```
 
 ## Run
 
 ```bash
-STRMNTR_E2E=1 .venv/bin/pytest tests/e2e -v
+STRMNTR_E2E=1 uv run pytest tests/e2e -v
 ```
 
 Useful environment variables:
@@ -52,11 +51,11 @@ Examples:
 
 ```bash
 STRMNTR_E2E=1 STRMNTR_E2E_SITES=SC STRMNTR_E2E_RECORD_SECONDS=15 \
-  .venv/bin/pytest tests/e2e -v
+  uv run pytest tests/e2e -v
 
 STRMNTR_E2E=1 STRMNTR_E2E_MODEL_FL=some_model \
   STRMNTR_E2E_ROOM_ID_FL=123456789012345678 \
-  .venv/bin/pytest tests/e2e -k FL -v
+  uv run pytest tests/e2e -k FL -v
 ```
 
 ## Discovery coverage
