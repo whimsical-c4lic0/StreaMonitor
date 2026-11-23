@@ -1,13 +1,4 @@
 {% extends "layout.html.jinja" %}
-{% block title %}StreaMonitor - {{ streamer.username }}{% endblock %}
-{% block head %}
-    {{ super() }}
-{% endblock %}
-{% block nav %}
-    {% set has_error = False %}
-    {% set update_content = False %}
-    {% include 'streamer_nav_bar.html.jinja' ignore missing with context %}
-{% endblock %}
-{% block content %}
-    {% include 'recordings_content.html.jinja' ignore missing with context %}
-{% endblock %}
+{% block title %}{{ streamer.username }} · Recordings · StreaMonitor{% endblock %}
+{% block nav %}{% set update_content = false %}{% include 'streamer_nav_bar.html.jinja' %}{% endblock %}
+{% block content %}{% include 'recordings_content.html.jinja' %}{% endblock %}

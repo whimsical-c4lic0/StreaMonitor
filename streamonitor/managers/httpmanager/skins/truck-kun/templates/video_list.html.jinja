@@ -1,65 +1,17 @@
-{% if videos is none or videos|length == 0 %}
-    <p class="full-width center">No recordings</p>
-    <div class="full-width center streamer-toggle">
-        {% include 'streamer_toggle.html.jinja' ignore missing with context %}
-    </div>
-{% else %}
-    <div class="files-container-header">
-        <h3 class="title">Files</h3>
-        <button class="sort-action"
-            hx-get="/videos/{{ streamer.username }}/{{ streamer.site }}"
-            hx-trigger="click"
-            hx-target="#video-list"
-            hx-sync="#video-list:queue last"
-            hx-swap="innerHTML"
-            {{ 'hx-vals=\'{"sorted": "True"}\''|safe if not sort_by_size }}
-            hx-include=".play-video-context"
-            title="Sort by {{'timestamp' if sort_by_size else 'file size'}}"
-            hx-disabled-elt="this">
-                <i class="icon feather {{'icon-clock' if sort_by_size else 'icon-bar-chart'}}"></i>Sort
-                {% if sort_by_size %}
-                    <input type="hidden" name="sorted" {{ 'disabled' if not sort_by_size }} id="sorted" readonly class="streamer-context sorted-context" value="{{ sort_by_size }}">
-                {% endif %}
-            </button>
-    </div>
-    <div class="files-container streamer-info">
-        <div class="streamer-toggle">
-            {% include 'streamer_toggle.html.jinja' ignore missing with context %}
+<section class="recordings-panel" aria-label="Recordings">
+    <div class="files-heading"><div><h2>Recordings <span class="muted">{{ videos|length if videos else 0 }}</span></h2><p class="muted">{{ total_size|tohumanfilesize }} total</p></div>
+    <label><span class="sr-only">Sort recordings</span><select name="sorted" hx-get="{{ url_for('sort_videos', user=streamer.username, site=streamer.site) }}" hx-trigger="change" hx-target="#video-list" hx-sync="#video-list:queue last" hx-include=".play-video-context"><option value="" {{ 'selected' if not sort_by_size }}>Newest first</option><option value="True" {{ 'selected' if sort_by_size }}>Largest first</option></select></label></div>
+    {% if sort_by_size %}<input type="hidden" name="sorted" class="streamer-context sorted-context" value="True">{% endif %}
+    {% if not videos %}<div class="empty-state"><i class="icon feather icon-video" aria-hidden="true"></i><h2>No recordings yet</h2><p class="muted">{{ 'Monitoring is enabled. Recordings will appear when the streamer goes live.' if streamer.running else 'Monitoring is paused. Resume monitoring to save future streams.' }}</p></div>
+    {% else %}<div class="files">
+    {% for video in videos.values() %}{% set selected = video_to_play is not none and video.filename == video_to_play.filename %}
+        <div class="file {{ 'selected' if selected }}">
+            <a class="file-info" href="{{ url_for('recordings', user=streamer.username, site=streamer.site, play_video=video.filename, sorted='True' if sort_by_size else '') }}" hx-get="{{ url_for('watch_video', user=streamer.username, site=streamer.site, play_video=video.filename) }}" hx-target="#content" hx-include=".sorted-context" hx-sync="#video-list:replace" {% if selected %}aria-current="true"{% endif %}>
+                <span class="filename">{% if selected %}<i class="icon feather icon-play" aria-hidden="true"></i> {% endif %}{{ video.shortname }}</span><span class="file-meta">{{ 'Now playing · ' if selected }}{{ video.human_readable_filesize }}</span>
+            </a>
+            <span class="size muted">{{ video.human_readable_filesize }}</span>
+            <button type="button" class="icon-button remove-video" hx-delete="{{ url_for('delete_video', user=streamer.username, site=streamer.site, filename=video.filename) }}" hx-target="#video-list" hx-sync="#video-list:replace" hx-include=".streamer-context" hx-disabled-elt="this" hx-confirm="Permanently delete {{ video.filename }}? This cannot be undone. The streamer will remain monitored." {{ 'disabled' if selected }} title="{{ 'Cannot delete the recording currently loaded' if selected else 'Delete recording' }}" aria-label="Delete {{ video.filename }}"><i class="icon feather icon-trash-2" aria-hidden="true"></i></button>
         </div>
-        <span>Total Space: {{ total_size | tohumanfilesize }}</span>
-    </div>
-    <div class="files-container video-list">
-    {% for video in videos.values() %}
-        {% set disable_delete = video.filename == video_to_play.filename and videos|length > 1 %}
-        <div class="video-ref">
-            <a href="/videos/watch/{{ streamer.username }}/{{ streamer.site }}/{{ video.filename }}"
-            class="video-link link-fill"
-            hx-get="/videos/watch/{{ streamer.username }}/{{ streamer.site }}/{{ video.filename }}"
-            hx-trigger="click"
-            hx-include=".sorted-context"
-            hx-target="#content"
-            hx-sync="#video-list:replace"
-            hx-swap="innerHTML"><span class="filename">{{ video.shortname }}</span><span class="size">{{ video.human_readable_filesize }}</span></a>
-            <button hx-delete="/videos/{{ streamer.username }}/{{ streamer.site }}/{{ video.filename }}"
-                hx-trigger="click"
-                hx-target="#video-list"
-                hx-sync="#video-list:replace"
-                hx-include=".streamer-context"
-                hx-swap="innerHTML"
-                hx-disabled-elt="this"
-                {{ "disabled" if disable_delete }}
-                {{ 'hx-confirm="Are you sure you want to delete {filename}?"'.format(filename=video.filename) if confirm_deletes }}
-                title="{{ 'you cannot remove a video currently loaded' if disable_delete else 'remove video' }}"
-                class="remove-video {{ 'currently-playing' if disable_delete }}">
-                <i class="icon feather icon-trash-2"></i>
-            </button>
-        </div>
-    {% endfor %}
-    </div>
-{% endif %}
-{% if has_error %}
-    <div class="error-modal">
-        <span>{{ recordings_error_message }}</span>
-        <button hx-delete="/clear" hx-swap="outerHTML" hx-target="closest .error-modal" hx-trigger="click">dismiss</button>
-    </div>
-{% endif %}
+    {% endfor %}</div>{% endif %}
+</section>
+{% if has_error %}<div class="error-modal" role="alert"><span>{{ recordings_error_message }}</span><button type="button" data-action="dismiss-error">Dismiss</button></div>{% endif %}

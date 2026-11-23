@@ -1,0 +1,5 @@
+<div id="summary" class="summary-stats" {% if not initial_render|default(true) %}hx-swap-oob="outerHTML"{% endif %}>
+    <div><strong class="recording-color">{{ ui_recording }}</strong><span>Recording</span></div>
+    <div><strong>{{ ui_monitored }}</strong><span>Monitored</span></div>
+    <div><strong>{{ ui_offline }}</strong><span>Offline</span></div>
+</div>

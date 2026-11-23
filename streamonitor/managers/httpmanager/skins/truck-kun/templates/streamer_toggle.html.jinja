@@ -1,22 +1,2 @@
-<button id="toggle-streamer" class="toggle-streamer-btn {{'pause-btn' if streamer.running else 'record-btn' }}" 
-    hx-patch="/toggle/{{ streamer.username }}/{{ streamer.site }}/recording"
-    hx-trigger="click"
-    hx-target="#toggle-streamer"
-    hx-swap="outerHTML"
-    hx-disabled-elt="this">
-    {% if streamer.running %}
-        <span>Pause</span>
-        <i class="icon feather icon-pause-circle"></i>
-    {% else %}
-        <span>Resume</span>
-        <i class="icon feather icon-play-circle"></i>
-    {% endif %}
-</button>
-{% if streamer_has_error %}
-<div hx-swap-oob="beforeend:#content">
-    <div class="error-modal">
-        <span>{{ streamer_error_message }}</span>
-        <button hx-delete="/clear" hx-swap="outerHTML" hx-target="closest .error-modal" hx-trigger="click">dismiss</button>
-    </div>
-</div>
-{% endif %}
+<button id="toggle-streamer" type="button" hx-patch="{{ url_for('toggle_streamer_recording_page', user=streamer.username, site=streamer.site) }}" hx-target="this" hx-swap="outerHTML" hx-sync="#video-list:queue last" hx-disabled-elt="this">{{ 'Pause' if streamer.running else 'Resume' }} monitoring</button>
+{% if streamer_has_error %}<div hx-swap-oob="beforeend:#content"><div class="error-modal" role="alert"><span>{{ streamer_error_message }}</span><button type="button" data-action="dismiss-error">Dismiss</button></div></div>{% endif %}

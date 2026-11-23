@@ -52,7 +52,7 @@ class Manager(Thread):
     def saveConfig(self):
         config.saveStreamers(self.streamers)
 
-    def do_add(self, streamer, username, site):
+    def do_add(self, streamer, username, site, start_monitoring=True):
         if streamer:
             return 'Streamer already exists'
         elif username and site:
@@ -60,7 +60,8 @@ class Manager(Thread):
                 streamer = Bot.createInstance(username, site)
                 self.streamers.append(streamer)
                 streamer.start()
-                streamer.restart()
+                if start_monitoring:
+                    streamer.restart()
                 self.saveConfig()
                 return "Added [" + streamer.siteslug + "] " + streamer.username
             except Exception as e:
