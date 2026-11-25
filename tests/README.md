@@ -28,6 +28,16 @@ dependencies with uv (or run the tests inside the Docker image); the ManyVids
 test skips with a clear reason when `aiortc`, `av`, `numpy` or `websockets` is
 missing.
 
+AmateurTV can return either a legacy `fstream` URL or an EasyStream
+WebSocket descriptor. The EasyStream path needs the `websockets` dependency
+and ffmpeg with MP4/ClearKey support; its test skips when the backend is
+unavailable. A successful EasyStream test must finalize playable video and
+audio, not merely connect to the edge. Live discovery deliberately keeps
+EasyStream shows in the candidate pool, and a recording failure is a test
+failure rather than a skip. Guest tokens may cap the selectable resolution;
+the test reports the actual recorded dimensions rather than assuming the
+wanted one was granted.
+
 Install the application and test dependencies:
 
 ```bash

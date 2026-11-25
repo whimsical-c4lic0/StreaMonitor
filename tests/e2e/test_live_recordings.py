@@ -27,6 +27,8 @@ from discovery import DiscoveryError, LiveCandidate, discover
 from streamonitor.bot import RoomIdBot
 from streamonitor.downloaders.agora import AgoraStream
 from streamonitor.downloaders.agora_webrtc import AgoraWebRTCBackend
+from streamonitor.downloaders.easystream import EasyStreamStream
+from streamonitor.downloaders.easystream_backend import EasyStreamBackend
 from streamonitor.enums import Status
 from streamonitor.sites import (
     AmateurTV,
@@ -239,7 +241,8 @@ def _record(bot, url, output_file: Path, seconds: int, baseline: set[Path]) -> _
     thread = Thread(target=run, name=f"e2e-record-{bot.siteslug}", daemon=True)
     thread.start()
 
-    deadline = time.monotonic() + (120 if isinstance(url, AgoraStream) else min(60, max(25, seconds * 2)))
+    descriptor = isinstance(url, (AgoraStream, EasyStreamStream))
+    deadline = time.monotonic() + (120 if descriptor else min(60, max(25, seconds * 2)))
     first_data_at = None
     while time.monotonic() < deadline:
         if _new_active_media(folder, baseline):
@@ -386,6 +389,8 @@ def test_live_site_records_video_and_audio(
     assert url is not None, f"{site_cls.siteslug}/{bot.username} returned no video URL"
     if isinstance(url, AgoraStream) and not AgoraWebRTCBackend.available():
         pytest.skip("the Agora WebRTC recorder dependencies are missing; run `uv sync` (or use the Docker image)")
+    if isinstance(url, EasyStreamStream) and not EasyStreamBackend.available():
+        pytest.skip("the EasyStream recorder dependencies are missing (websockets/ffmpeg); run `uv sync`")
 
     folder = Path(bot.outputFolder)
     failures: list[str] = []

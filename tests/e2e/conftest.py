@@ -64,6 +64,7 @@ if FFMPEG and not os.environ.get("STRMNTR_FFMPEG_PATH"):
 # The Agora recorder needs a JVM, the native SDK and an RTC join; give it more
 # startup room than the HLS sites in the opt-in tests.
 os.environ.setdefault("STRMNTR_AGORA_JOIN_TIMEOUT", "90")
+os.environ.setdefault("STRMNTR_EASYSTREAM_STARTUP_TIMEOUT", "90")
 
 # Keep ffmpeg's stderr next to each recording.  The downloader only writes it
 # in debug mode, and a live failure is otherwise reduced to an exit code in
