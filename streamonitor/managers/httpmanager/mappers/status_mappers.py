@@ -1,6 +1,5 @@
 from streamonitor.enums import Status
 
-
 web_status_lookup = {
     Status.PUBLIC: "Online",
     Status.OFFLINE: "Offline",

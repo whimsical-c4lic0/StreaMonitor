@@ -2,9 +2,9 @@ import re
 
 import requests
 
-from streamonitor.bot import Bot
-from streamonitor.enums import Status, Gender
 from parameters import CMAF_MASTER_PLAYLIST
+from streamonitor.bot import Bot
+from streamonitor.enums import Gender, Status
 
 
 class Chaturbate(Bot):

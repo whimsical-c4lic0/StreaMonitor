@@ -1,7 +1,7 @@
 import time
 
 from streamonitor.enums import Status
-from streamonitor.managers.httpmanager.mappers import web_status_lookup, status_icons_lookup
+from streamonitor.managers.httpmanager.mappers import status_icons_lookup, web_status_lookup
 
 
 def status_text(sc):

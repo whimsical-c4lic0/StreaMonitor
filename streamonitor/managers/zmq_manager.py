@@ -1,6 +1,7 @@
 import zmq
-from streamonitor.manager import Manager
+
 import streamonitor.log as log
+from streamonitor.manager import Manager
 
 
 class ZMQManager(Manager):

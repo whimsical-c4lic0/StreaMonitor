@@ -1,7 +1,8 @@
 import sys
-from streamonitor.manager import Manager
-from streamonitor.clean_exit import CleanExit
+
 import streamonitor.log as log
+from streamonitor.clean_exit import CleanExit
+from streamonitor.manager import Manager
 
 if sys.platform != "win32":
     import readline  # noqa: F401 - enable readline support for CLI input

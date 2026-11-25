@@ -1,11 +1,13 @@
 import json
 import os
 import subprocess
-from threading import Thread
-from websocket import create_connection, WebSocketConnectionClosedException, WebSocketException
 from contextlib import closing
+from threading import Thread
+
 from ffmpy import FFmpeg, FFRuntimeError
-from parameters import DEBUG, CONTAINER, SEGMENT_TIME, FFMPEG_PATH
+from websocket import WebSocketConnectionClosedException, WebSocketException, create_connection
+
+from parameters import CONTAINER, DEBUG, FFMPEG_PATH, SEGMENT_TIME
 
 
 def getVideoWSSVR(self, url, filename):

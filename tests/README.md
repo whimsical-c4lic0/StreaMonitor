@@ -26,7 +26,7 @@ missing.
 Install the application and test dependencies:
 
 ```bash
-uv sync
+uv sync --frozen
 ```
 
 ## Run

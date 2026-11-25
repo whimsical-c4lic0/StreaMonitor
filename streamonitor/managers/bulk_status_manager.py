@@ -2,10 +2,10 @@ from time import sleep
 
 import requests
 
-from streamonitor.bot import LOADED_SITES
-from streamonitor.manager import Manager
-from streamonitor.clean_exit import CleanExit
 import streamonitor.log as log
+from streamonitor.bot import LOADED_SITES
+from streamonitor.clean_exit import CleanExit
+from streamonitor.manager import Manager
 
 
 class BulkStatusManager(Manager):

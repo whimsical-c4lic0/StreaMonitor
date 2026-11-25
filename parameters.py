@@ -1,16 +1,26 @@
-import os.path
+import os
 import sys
+from pathlib import Path
 
 import environ
 from fake_useragent import UserAgent
 
+# Resolve settings from the checkout root, not the caller's working directory.
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 env = environ.Env()
-if os.path.exists('.env'):
-    environ.Env.read_env('.env')
+ENV_FILE = Path(os.environ.get("STRMNTR_ENV_FILE", PROJECT_ROOT / ".env"))
+if ENV_FILE.exists():
+    environ.Env.read_env(str(ENV_FILE))
 
 
-DOWNLOADS_DIR = env.str("STRMNTR_DOWNLOAD_DIR", "downloads")
+def _project_path(value):
+    path = Path(value)
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+DOWNLOADS_DIR = str(_project_path(env.str("STRMNTR_DOWNLOAD_DIR", "downloads")))
+CONFIG_FILE = str(_project_path(env.str("STRMNTR_CONFIG", "config.json")))
 MIN_FREE_DISK_PERCENT = env.float("STRMNTR_MIN_FREE_SPACE", 5.0)  # in %
 DEBUG = env.bool("STRMNTR_DEBUG", False)
 

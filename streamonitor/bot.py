@@ -1,33 +1,34 @@
 from __future__ import unicode_literals
+
 import os
 import re
 import subprocess
 import tempfile
 import time
 import traceback
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
+from threading import Thread
+from time import sleep
 from urllib.parse import urljoin
 
 import m3u8
 from curl_cffi import requests
-from time import sleep
-from datetime import datetime
-from threading import Thread
 
-from streamonitor.enums import Status, COUNTRIES, Gender, GENDER_DATA
 import streamonitor.log as log
 from parameters import (
-    DOWNLOADS_DIR,
+    CONTAINER,
     DEBUG,
+    DOWNLOADS_DIR,
+    FFMPEG_PATH,
+    HTTP_USER_AGENT,
+    SEGMENT_TIME,
     WANTED_RESOLUTION,
     WANTED_RESOLUTION_PREFERENCE,
-    CONTAINER,
-    HTTP_USER_AGENT,
-    FFMPEG_PATH,
-    SEGMENT_TIME,
 )
 from streamonitor.downloaders.ffmpeg import getVideoFfmpeg
+from streamonitor.enums import COUNTRIES, GENDER_DATA, Gender, Status
 from streamonitor.models import VideoData
 
 LOADED_SITES = set()
@@ -36,7 +37,7 @@ LOADED_SITES = set()
 class Bot(Thread):
     site = None
     siteslug = None
-    aliases = []
+    aliases: list[str] = []
     ratelimit = False
     bulk_update = False
 
@@ -931,7 +932,7 @@ class Bot(Thread):
         return None
 
     @staticmethod
-    def createInstance(username: str, site: str = None):
+    def createInstance(username: str, site: str | None = None):
         if site:
             site_cls = Bot.str2site(site)
             if site_cls:

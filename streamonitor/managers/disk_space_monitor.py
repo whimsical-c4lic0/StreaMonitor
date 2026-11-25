@@ -1,24 +1,25 @@
 import os.path
 import shutil
-from time import sleep
-import streamonitor.log as log
 from threading import Thread
+from time import sleep
+
+import streamonitor.log as log
 from parameters import DOWNLOADS_DIR, MIN_FREE_DISK_PERCENT
 from streamonitor.clean_exit import CleanExit
 
 
-class OOSDetector(Thread):
+class DiskSpaceMonitor(Thread):
     under_threshold_message = 'Free space is under threshold. Exiting.'
 
     def __init__(self, streamers):
         super().__init__()
         self.streamers = streamers
         self.daemon = True
-        self.logger = log.Logger("out_of_space_detector")
+        self.logger = log.Logger("disk_space_monitor")
 
     @staticmethod
     def free_space():
-        usage = OOSDetector.space_usage()
+        usage = DiskSpaceMonitor.space_usage()
         free_percent = usage.free / usage.total * 100
         return free_percent
 
@@ -32,7 +33,7 @@ class OOSDetector(Thread):
 
     @staticmethod
     def disk_space_good():
-        return OOSDetector.free_space() > MIN_FREE_DISK_PERCENT
+        return DiskSpaceMonitor.free_space() > MIN_FREE_DISK_PERCENT
 
     def run(self):
         while True:
@@ -41,3 +42,8 @@ class OOSDetector(Thread):
                 CleanExit(self.streamers)()
                 return
             sleep(5)
+
+
+# Backwards-compatible name for code and integrations that imported the old
+# detector class. New code should use DiskSpaceMonitor.
+OOSDetector = DiskSpaceMonitor

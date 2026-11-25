@@ -83,6 +83,15 @@ List the streamers in the config
 python3 Controller.py status
 ```
 
+By default the controller connects to `127.0.0.1:6969`. Control another host with
+`--host` (`-H`):
+```
+python3 Controller.py --host 192.168.1.10 status
+```
+
+`-h` and `--help` now show the controller help. The old `-h <host>` form is
+gone; the attached legacy form `-hHOST` is still accepted for compatibility.
+
 #### Web interface
 
 You can access the web interface on port 5000. 
@@ -115,11 +124,21 @@ chown -R 1000:1000 downloads config.json stripchat_mouflon_keys.json
 
 ## Configuration
 
-You can set some parameters in the [parameters.py](parameters.py).
+You can set some parameters with environment variables (see
+[parameters.py](parameters.py)). `.env` and the default `config.json` are read
+from the project root, not the directory you launch the process from. Relative
+`STRMNTR_DOWNLOAD_DIR` values are also resolved against the project root.
+Override the file locations with `STRMNTR_ENV_FILE` and `STRMNTR_CONFIG`.
 
 If a recording is interrupted (network error, stalled ffmpeg, expired stream URL), the next attempt continues in a part file and the parts are merged into a single video when the show ends. `STRMNTR_FFMPEG_STALL_TIMEOUT` (default `45` seconds, `0` disables it) stops ffmpeg when it stops producing output so the recording can resume. If the process is killed before the merge, the leftover `.partN` files and the raw HLS download (`<show>.tmp.ts`) are finished the next time the streamer starts, so nothing has to be cleaned up by hand.
 
 You also have to add decryption keys yourself for StripChat in the `stripchat_mouflon_keys.json` file.
+
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). After `uv sync --frozen`, run
+`./scripts/check.sh` for lint, format, and type checks, and
+`uv run --frozen --no-sync pytest -m "not e2e"` for the offline suite.
 
 ## Disclaimer
 

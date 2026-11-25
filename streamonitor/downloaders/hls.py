@@ -1,10 +1,12 @@
-import m3u8
 import os
 import subprocess
 from threading import Thread
-from ffmpy import FFmpeg, FFRuntimeError
 from time import sleep
-from parameters import DEBUG, CONTAINER, SEGMENT_TIME, FFMPEG_PATH
+
+import m3u8
+from ffmpy import FFmpeg, FFRuntimeError
+
+from parameters import CONTAINER, DEBUG, FFMPEG_PATH, SEGMENT_TIME
 
 _http_lib = None
 if not _http_lib:

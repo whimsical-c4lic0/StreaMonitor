@@ -1,8 +1,10 @@
 import urllib.parse
+
 from bs4 import BeautifulSoup
+
+from parameters import CMAF_MASTER_PLAYLIST
 from streamonitor.bot import Bot
 from streamonitor.enums import Status
-from parameters import CMAF_MASTER_PLAYLIST
 
 
 class MyFreeCams(Bot):

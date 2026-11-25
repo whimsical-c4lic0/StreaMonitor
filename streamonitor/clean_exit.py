@@ -1,5 +1,5 @@
-import time
 import signal
+import time
 from threading import Thread
 
 

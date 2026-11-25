@@ -4,10 +4,11 @@ import subprocess
 import sys
 import threading
 import time
+from threading import Thread
 
 import requests.cookies
-from threading import Thread
-from parameters import DEBUG, SEGMENT_TIME, CONTAINER, FFMPEG_PATH, FFMPEG_READRATE, FFMPEG_STALL_TIMEOUT
+
+from parameters import CONTAINER, DEBUG, FFMPEG_PATH, FFMPEG_READRATE, FFMPEG_STALL_TIMEOUT, SEGMENT_TIME
 
 
 def _buildInputArgs(url):
