@@ -31,12 +31,12 @@ from streamonitor.downloaders.ffmpeg import getVideoFfmpeg
 from streamonitor.enums import COUNTRIES, GENDER_DATA, Gender, Status
 from streamonitor.models import VideoData
 
-LOADED_SITES = set()
+LOADED_SITES: "set[type[Bot]]" = set()
 
 
 class Bot(Thread):
-    site = None
-    siteslug = None
+    site: str | None = None
+    siteslug: str | None = None
     aliases: list[str] = []
     ratelimit = False
     bulk_update = False
@@ -927,7 +927,11 @@ class Bot(Thread):
     def str2site(site: str):
         site = site.lower()
         for sitecls in LOADED_SITES:
-            if site == sitecls.site.lower() or site == sitecls.siteslug.lower() or site in sitecls.aliases:
+            if sitecls.site and site == sitecls.site.lower():
+                return sitecls
+            if sitecls.siteslug and site == sitecls.siteslug.lower():
+                return sitecls
+            if site in sitecls.aliases:
                 return sitecls
         return None
 
