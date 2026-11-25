@@ -190,7 +190,7 @@ def test_transient_segment_error_retries_without_duplicates(server, tmp_path, mo
         body=playlist("seg0.ts", "seg1.ts") if count == 1 else playlist()
     )
     state.routes["/live/seg0.ts"] = Response(body=b"A" * 16)
-    state.routes["/live/seg1.ts"] = lambda count: (Response(status=503) if count == 1 else Response(body=b"B" * 16))
+    state.routes["/live/seg1.ts"] = lambda count: Response(status=503) if count == 1 else Response(body=b"B" * 16)
 
     assert hls_module.getVideoNativeHLS(FakeBot(), playlist_url, str(output)) is True
 
