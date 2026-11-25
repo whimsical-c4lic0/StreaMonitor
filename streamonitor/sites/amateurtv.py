@@ -1,4 +1,3 @@
-import requests
 from streamonitor.bot import Bot
 from streamonitor.enums import Status
 

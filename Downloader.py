@@ -1,13 +1,13 @@
 import os
 import sys
 import streamonitor.config as config
+import streamonitor.sites  # noqa: F401 - importing registers the site classes
 from streamonitor.managers.bulk_status_manager import BulkStatusManager
 from streamonitor.managers.httpmanager import HTTPManager
 from streamonitor.managers.climanager import CLIManager
 from streamonitor.managers.zmqmanager import ZMQManager
 from streamonitor.managers.outofspace_detector import OOSDetector
 from streamonitor.clean_exit import CleanExit
-import streamonitor.sites  # must have
 
 
 def is_docker():
@@ -22,7 +22,7 @@ def main():
 
     streamers = config.loadStreamers()
 
-    clean_exit = CleanExit(streamers)
+    CleanExit(streamers)
 
     oos_detector = OOSDetector(streamers)
     oos_detector.start()

@@ -4,7 +4,7 @@ from streamonitor.clean_exit import CleanExit
 import streamonitor.log as log
 
 if sys.platform != "win32":
-    import readline
+    import readline  # noqa: F401 - enable readline support for CLI input
 
 
 class CLIManager(Manager):

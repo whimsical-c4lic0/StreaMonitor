@@ -1,5 +1,4 @@
 import math
-from logging import INFO, WARN, ERROR
 from threading import Thread
 from termcolor import colored
 import terminaltables.terminal_io

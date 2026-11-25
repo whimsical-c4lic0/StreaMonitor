@@ -23,7 +23,7 @@ class XLoveCam(Bot):
             'origin': "filter-chg",
             'stat': "0",
         }
-        r = requests.post(f'https://www.xlovecam.com/hu/performerAction/onlineList', headers=self.headers, data=data)
+        r = requests.post('https://www.xlovecam.com/hu/performerAction/onlineList', headers=self.headers, data=data)
         if not r.ok:
             return None
         resp = r.json()
@@ -47,7 +47,7 @@ class XLoveCam(Bot):
             'performerId': self._id,
         }
         r = requests.post(
-            f'https://www.xlovecam.com/hu/performerAction/getPerformerRoom', headers=self.headers, data=data
+            'https://www.xlovecam.com/hu/performerAction/getPerformerRoom', headers=self.headers, data=data
         )
 
         if not r.ok:

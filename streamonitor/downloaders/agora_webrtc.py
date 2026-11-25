@@ -15,7 +15,6 @@ import os
 import queue
 import shutil
 import subprocess
-import sys
 import tempfile
 import threading
 from collections import deque

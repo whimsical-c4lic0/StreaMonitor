@@ -1,6 +1,5 @@
 import json
 
-import requests
 from streamonitor.bot import RoomIdBot
 from streamonitor.enums import Status
 

@@ -62,7 +62,7 @@ class Chaturbate(Bot):
             status = self._parseStatus(self.lastInfo['room_status'])
             if status == status.PUBLIC and not self.lastInfo['url']:
                 status = status.RESTRICTED
-        except:
+        except Exception:
             status = Status.RATELIMIT
 
         self.ratelimit = status == Status.RATELIMIT

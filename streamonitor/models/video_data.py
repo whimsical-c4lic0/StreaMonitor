@@ -9,9 +9,7 @@ logger = logging.getLogger(__name__)
 
 class VideoData:
     filename: str
-    mimetype: str
     abs_path: str
-    shortname: str
     filesize: int = 0
     human_readable_filesize: str = '0'
     play = False

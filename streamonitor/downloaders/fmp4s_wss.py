@@ -45,7 +45,7 @@ def getVideoWSSVR(self, url, filename):
                                         debug_('Server is not ready or there was a change')
                                         error = True
                                         return
-                            except:
+                            except Exception:
                                 debug_('Failed to open the connection')
                                 error = True
                                 return

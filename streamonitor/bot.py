@@ -195,7 +195,7 @@ class Bot(Thread):
                 for file in os.scandir(videos_folder):
                     if file.is_dir():
                         continue
-                    if not os.path.splitext(file.name)[1][1:] in ['mp4', 'mkv', 'webm', 'mov', 'avi', 'wmv']:
+                    if os.path.splitext(file.name)[1][1:] not in ['mp4', 'mkv', 'webm', 'mov', 'avi', 'wmv']:
                         continue
                     video = VideoData(file, self.username)
                     _total_size += video.filesize
@@ -962,7 +962,7 @@ class RoomIdBot(Bot):
                 self.logger.debug(f'Found room ID: {self.room_id}')
 
         if self.room_id is None:  # Still no room ID, streamer probably does not exist
-            self.logger.warning(f'Room ID not found')
+            self.logger.warning('Room ID not found')
             self.sc = Status.NOTEXIST
 
         self.logger = self.getLogger()
