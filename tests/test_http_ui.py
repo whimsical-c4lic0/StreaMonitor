@@ -102,6 +102,25 @@ def soup(response):
     return BeautifulSoup(response.data, "html.parser")
 
 
+def test_health_endpoint_is_unauthenticated(ui, monkeypatch):
+    app, manager = ui
+    monkeypatch.setattr(module, "WEBSERVER_PASSWORD", "secret")
+    client = app.test_client()
+
+    # The regular API stays protected while the container probe does not.
+    assert client.get("/api/data").status_code == 401
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "status": "ok",
+        "streamers": 1,
+        "monitored": 1,
+        "recording": 0,
+        "offline": 1,
+    }
+
+
 def test_home_has_accessible_drawer_filters_and_real_summary(ui):
     app, manager = ui
     page = soup(app.test_client().get("/"))

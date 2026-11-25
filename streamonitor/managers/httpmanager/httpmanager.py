@@ -87,6 +87,18 @@ class HTTPManager(Manager):
 
             return wrapped_view
 
+        @app.route('/health')
+        def health():
+            """Unauthenticated liveness/readiness endpoint for container probes."""
+            payload = {
+                'status': 'ok',
+                'streamers': len(self.streamers),
+                'monitored': sum(bool(s.running) for s in self.streamers),
+                'recording': sum(bool(s.recording) for s in self.streamers),
+                'offline': sum(s.sc in (Status.OFFLINE, Status.LONG_OFFLINE) for s in self.streamers),
+            }
+            return Response(json.dumps(payload), mimetype='application/json')
+
         @app.route('/dashboard')
         @login_required
         def mainSite():
