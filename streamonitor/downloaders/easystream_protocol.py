@@ -916,6 +916,12 @@ class LayerChoice:
         return f"layer {self.layer}"
 
 
+def resolution_dimension(value: Any) -> int | None:
+    """Short side of an edge resolution label, or ``None`` when unparseable."""
+    metric = _resolution_metric(value)
+    return metric[2] if metric is not None else None
+
+
 def _resolution_metric(value: Any) -> tuple[int | None, int | None, int] | None:
     """Map an edge resolution label to ``(width, height, sort dimension)``.
 

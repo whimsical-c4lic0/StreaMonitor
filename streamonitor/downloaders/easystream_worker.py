@@ -34,6 +34,7 @@ from streamonitor.downloaders.easystream_protocol import (
     parse_clearkey_license,
     parse_fragment,
     parse_init,
+    resolution_dimension,
     select_layer,
     validate_server_message,
 )
@@ -82,6 +83,12 @@ class EasyStreamSession:
         self.resolutions: list = []
         self.current_layer: int | None = None
         self.selected_layer: int | None = None
+        # Set while the worker waits for the edge to acknowledge a layer
+        # ``select``.  Media arriving in the meantime still belongs to the
+        # previous layer, so it is buffered instead of recorded.
+        self.layer_pending = False
+        self.layer_pending_since = 0.0
+        self.layer_confirmed_at: float | None = None
         self.drm_mode: str | None = None
         self.media_mode: str | None = None
         self.access_allowed = False
@@ -361,6 +368,10 @@ class EasyStreamSession:
             self.current_layer = message.get("layer")
             self.selected_layer = self.current_layer
             self._emit("layer", layer=self.current_layer)
+            if self.layer_pending and self.layer_confirmed_at is None:
+                # The new layer's init segment follows this message; wait
+                # briefly for it instead of recording the old init.
+                self.layer_confirmed_at = time.monotonic()
         elif kind == "access":
             self.media_mode = message.get("media", self.media_mode)
             self._emit("access", access=message.get("access"), media=self.media_mode, reason=message.get("reason"))
@@ -404,12 +415,69 @@ class EasyStreamSession:
                 current=self.current_layer,
             )
             if choice is not None and choice.layer != self.current_layer:
-                self.selected_layer = choice.layer
+                self._begin_layer_switch(choice.layer)
                 await self._send_json({"type": "select", "stream": self.stream_id, "layer": choice.layer})
         elif kind == "warning":
             self._warn("EasyStream edge warning")
         # pong, gap, bandwidth, input_buffer, heartbeat, alive, certificate and
         # unknown optional events are intentionally ignored.
+
+    def _begin_layer_switch(self, layer: int) -> None:
+        """Defer recording until the edge has applied a layer ``select``.
+
+        The edge keeps sending the current layer's init and fragments until it
+        processes the request.  Starting ffmpeg on that init would make the
+        switch look like an ``init_changed`` restart, turning one recording
+        into a series of sub-second parts.
+        """
+        self.selected_layer = layer
+        self.layer_pending = True
+        self.layer_pending_since = time.monotonic()
+        self.layer_confirmed_at = None
+
+    def _reset_init_state(self) -> None:
+        """Forget an init segment and everything buffered for it."""
+        self.init_info = None
+        self.init_fingerprint = None
+        self.init_bytes = None
+        self.pre_init = []
+        self.pre_init_bytes = 0
+        self.buffer = []
+        self.buffer_bytes = 0
+        self.buffer_started = None
+        self.buffered_media_data = False
+        self.pending_kid = None
+        self.key_hex = None
+        self.last_fragment_start = {}
+
+    def _store_pending_init(self, info, data: bytes, fingerprint: tuple) -> None:
+        self.init_info = info
+        self.init_fingerprint = fingerprint
+        self.init_bytes = data
+        self._buffer(data)
+        if info.has_media:
+            self.buffered_media_data = True
+        if info.kids:
+            if len(info.kids) > 1:
+                self._end("multiple_keys")
+            self._begin_license(info.kids[0])
+
+    def _init_is_current_layer(self, info) -> bool:
+        """Whether ``info`` still describes the layer being left behind.
+
+        Unknown resolutions count as "no", so an edge that does not publish
+        them keeps the old accept-the-first-init behaviour.
+        """
+        if not self.layers or not self.resolutions or self.current_layer not in self.layers:
+            return False
+        index = self.layers.index(self.current_layer)
+        if index >= len(self.resolutions):
+            return False
+        expected = resolution_dimension(self.resolutions[index])
+        video = info.video
+        if expected is None or video is None or video.width is None or video.height is None:
+            return False
+        return min(video.width, video.height) == expected
 
     async def _on_subscribed(self, message: dict) -> None:
         self.subscribed = True
@@ -429,6 +497,7 @@ class EasyStreamSession:
         if choice is not None:
             self.selected_layer = choice.layer
             if self.current_layer != choice.layer:
+                self._begin_layer_switch(choice.layer)
                 await self._send_json({"type": "select", "stream": self.stream_id, "layer": choice.layer})
             self._emit(
                 "subscribed",
@@ -483,6 +552,12 @@ class EasyStreamSession:
             return
         if code in ("unknown_layer", "layer_unavailable"):
             self._warn(f"EasyStream layer selection failed: {code}")
+            if self.layer_pending:
+                # Record the layer the edge will keep sending instead of
+                # waiting out the select timeout.
+                self.layer_pending = False
+                self.layer_confirmed_at = None
+                await self._flush_buffered_media()
             return
         if code in ("unsupported_codec", "drm_unsupported"):
             self._end("unsupported")
@@ -546,6 +621,40 @@ class EasyStreamSession:
         if not self._init_supported(info):
             self._end("drm_unsupported")
         fingerprint = info.fingerprint
+        if self.layer_pending:
+            confirmed = self.layer_confirmed_at is not None
+            if not confirmed and self.init_fingerprint is None:
+                # First init after the select.  If it is already at another
+                # resolution than the layer being left, the edge applied the
+                # select before sending media and there is nothing to wait for.
+                if self._init_is_current_layer(info):
+                    self._store_pending_init(info, data, fingerprint)
+                    return
+                self.layer_pending = False
+            elif not confirmed:
+                if fingerprint == self.init_fingerprint:
+                    return
+                # Keep only the newest interim init; fragments that belong to
+                # an older one are dropped with it.
+                self._reset_init_state()
+                if self._init_is_current_layer(info):
+                    self._store_pending_init(info, data, fingerprint)
+                    return
+                self.layer_pending = False
+            else:
+                if self.init_fingerprint is not None and fingerprint == self.init_fingerprint:
+                    # The acknowledged layer kept the same init, so the
+                    # buffered data is already at the wanted resolution.
+                    self.layer_pending = False
+                    self.layer_confirmed_at = None
+                    await self._flush_buffered_media()
+                    return
+                if self.init_fingerprint is not None:
+                    # The selected layer's init arrived: drop the interim
+                    # layer's init/fragments instead of finalizing a part.
+                    self._reset_init_state()
+                self.layer_pending = False
+            self.layer_confirmed_at = None
         if self.init_fingerprint is None:
             self.init_info = info
             self.init_fingerprint = fingerprint
@@ -628,6 +737,12 @@ class EasyStreamSession:
         if self.init_info is None:
             self._buffer_pre_init(data)
             return
+        if self.layer_pending:
+            # Fragments before the layer acknowledgement are not part of the
+            # recording; buffer them until the switch resolves.
+            self._buffer(data)
+            self.buffered_media_data = True
+            return
         try:
             fragments = parse_fragment(data, {track.track_id: track.timescale for track in self.init_info.tracks})
         except EasyStreamProtocolError:
@@ -687,7 +802,7 @@ class EasyStreamSession:
             self._end("media_buffer_overflow")
 
     async def _flush_buffered_media(self) -> None:
-        if not self.access_allowed or not self.buffer:
+        if self.layer_pending or not self.access_allowed or not self.buffer:
             return
         await self._start_ffmpeg(self.key_hex)
         buffered, self.buffer = self.buffer, []
@@ -867,6 +982,20 @@ class EasyStreamSession:
                 self._end("license_denied" if self.license_denied else "license_timeout")
             elif now >= self.next_license_send:
                 await self._send_license_request()
+
+        if self.layer_pending:
+            confirmed = self.layer_confirmed_at
+            if confirmed is not None:
+                if now - confirmed > parameters.EASYSTREAM_LAYER_CONFIRM_TIMEOUT:
+                    # The acknowledged layer reused the current init.
+                    self.layer_pending = False
+                    self.layer_confirmed_at = None
+                    await self._flush_buffered_media()
+            elif now - self.layer_pending_since > parameters.EASYSTREAM_LAYER_SELECT_TIMEOUT:
+                # The edge never acknowledged the select; record what it sends
+                # rather than stalling until the silence timeout.
+                self.layer_pending = False
+                await self._flush_buffered_media()
 
         if self.buffer_started is not None and now - self.buffer_started > parameters.EASYSTREAM_BUFFER_SECONDS:
             self._end("license_buffer_overflow")

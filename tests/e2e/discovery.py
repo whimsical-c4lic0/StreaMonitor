@@ -33,6 +33,11 @@ class DiscoveryError(RuntimeError):
     """Discovery could not be attempted for this site."""
 
 
+def _html_title(text: str) -> str | None:
+    match = re.search(r"<title[^>]*>(.*?)</title>", text, re.IGNORECASE | re.DOTALL)
+    return " ".join(match.group(1).split()) if match else None
+
+
 def _session() -> curl_requests.Session:
     return curl_requests.Session(impersonate="chrome")
 
@@ -44,7 +49,20 @@ def _get(session: curl_requests.Session, url: str, **kwargs):
 
 
 def _json(session: curl_requests.Session, url: str, **kwargs):
-    return _get(session, url, **kwargs).json()
+    # Sites sometimes answer a blocked datacenter IP with an HTML challenge or
+    # interstitial and HTTP 200, so a JSON decode failure is a discovery
+    # problem (the caller skips) rather than a test failure.
+    headers = {"Accept": "application/json", **kwargs.pop("headers", {})}
+    response = _get(session, url, headers=headers, **kwargs)
+    try:
+        return response.json()
+    except ValueError:
+        content_type = (response.headers.get("content-type") or "").lower()
+        detail = _html_title(response.text) or " ".join(response.text.split())[:120]
+        raise DiscoveryError(
+            f"{url} returned {content_type or 'an unknown content type'} instead of JSON "
+            f"(HTTP {response.status_code}); the site may be blocking this network: {detail}"
+        ) from None
 
 
 def _unique(values):

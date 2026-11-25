@@ -64,9 +64,9 @@ def sinf(kid: str | None = None, *, original: str = "avc1", version: int = 1) ->
     return box("sinf", children)
 
 
-def video_entry(kid: str | None = None) -> bytes:
+def video_entry(kid: str | None = None, *, width: int = 1280, height: int = 720) -> bytes:
     # 6 reserved, data_reference_index, pre_defined/reserved, width, height.
-    header = b"\0" * 6 + struct.pack(">H", 1) + b"\0" * 16 + struct.pack(">HH", 1280, 720) + b"\0" * 50
+    header = b"\0" * 6 + struct.pack(">H", 1) + b"\0" * 16 + struct.pack(">HH", width, height) + b"\0" * 50
     entry_type = "encv" if kid is not None else "avc1"
     children = sinf(kid) if kid is not None else box("avcC", b"\x01\x64\x00\x2a")
     return box(entry_type, header + children)
@@ -102,11 +102,13 @@ def init_segment(
     audio_kid: str | None = None,
     pssh_kid: bool = False,
     complete: bool = False,
+    width: int = 1280,
+    height: int = 720,
 ) -> bytes:
     ftyp = box("ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
     moov = box(
         "moov",
-        trak(1, "vide", 90000, video_entry(kid))
+        trak(1, "vide", 90000, video_entry(kid, width=width, height=height))
         + trak(2, "soun", 48000, audio_entry(audio_kid))
         + pssh(kid=kid if pssh_kid and kid else None),
     )

@@ -167,6 +167,14 @@ EASYSTREAM_SILENCE_TIMEOUT = env.int("STRMNTR_EASYSTREAM_SILENCE_TIMEOUT", 10)
 # Hard limit in seconds for one recording part; 0 disables the limit.
 EASYSTREAM_MAX_DURATION = env.int("STRMNTR_EASYSTREAM_MAX_DURATION", 0)
 
+# Grace period for a layer switch.  The edge keeps streaming the previous
+# layer until it processes the worker's ``select``; recording waits for the
+# acknowledgement so a part does not start at the wrong resolution.  The first
+# timeout covers the select itself, the second the init segment that follows
+# the edge's ``layer`` message.
+EASYSTREAM_LAYER_SELECT_TIMEOUT = env.float("STRMNTR_EASYSTREAM_LAYER_SELECT_TIMEOUT", 5.0)
+EASYSTREAM_LAYER_CONFIRM_TIMEOUT = env.float("STRMNTR_EASYSTREAM_LAYER_CONFIRM_TIMEOUT", 1.0)
+
 # Bounds for media buffered while waiting for an init segment or a license,
 # and for data queued for a slow ffmpeg.
 EASYSTREAM_BUFFER_BYTES = env.int("STRMNTR_EASYSTREAM_BUFFER_BYTES", 32 * 1024 * 1024)

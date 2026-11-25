@@ -105,6 +105,61 @@ def test_worker_selects_the_wanted_layer_before_media(monkeypatch, tmp_path):
     assert "1920x1080" in subscribed["resolution"]
 
 
+def test_layer_switch_does_not_restart_the_recording(monkeypatch, tmp_path):
+    """The edge keeps sending the old layer until it applies the select.
+
+    The init that arrives after the ``layer`` acknowledgement describes the
+    requested layer.  Adopting it before the part starts must not be treated as
+    ``init_changed``: that used to split a live show into sub-second parts.
+    """
+    monkeypatch.setattr(parameters, "FFMPEG_PATH", str(write_fake_ffmpeg(tmp_path / "ffmpeg")))
+    received: list[dict] = []
+
+    async def handler(ws):
+        async for raw in ws:
+            message = json.loads(raw)
+            received.append(message)
+            kind = message.get("type")
+            if kind == "subscribe":
+                await send_json(
+                    ws,
+                    {
+                        "type": "subscribed",
+                        "stream": STREAM_ID,
+                        "session": "s",
+                        "n": 0,
+                        "layer": 0,
+                        "layers": [0, 1],
+                        "resolutions": ["640x360", "1280x720"],
+                        "codecs": "avc1.64001f,mp4a.40.2",
+                        "drm": "none",
+                    },
+                )
+                await send_json(ws, {"type": "access", "stream": STREAM_ID, "access": "public", "media": "all"})
+            elif kind == "want":
+                # Media for the initial layer arrives before the edge applies
+                # the select.
+                await ws.send(init_segment(width=640, height=360))
+                await ws.send(fragment())
+                await send_json(ws, {"type": "layer", "stream": STREAM_ID, "layer": 1})
+                await ws.send(init_segment(width=1280, height=720))
+                await ws.send(fragment(decode_time=6000))
+                await send_json(ws, {"type": "end", "stream": STREAM_ID})
+
+    server = EdgeServer(handler).start()
+    try:
+        _, events = run_session(make_config(tmp_path / "out.mp4", server.url(), wanted=720), monkeypatch)
+    finally:
+        server.close()
+
+    stopped = by_event(events, "stopped")[-1]
+    assert stopped["reason"] == "ended"
+    media = by_event(events, "media")
+    assert len(media) == 1
+    assert (media[0]["width"], media[0]["height"]) == (1280, 720)
+    assert (tmp_path / "out.mp4").stat().st_size > 0
+
+
 def test_layers_event_reselects_a_removed_or_remapped_layer(monkeypatch, tmp_path):
     monkeypatch.setattr(parameters, "FFMPEG_PATH", str(write_fake_ffmpeg(tmp_path / "ffmpeg")))
     received: list[dict] = []
