@@ -18,6 +18,7 @@ class VideoData:
 
     def __init__(self, file: os.DirEntry, username: str):
         from streamonitor.utils.human_file_size import human_file_size
+
         self._stat = file.stat()
         self.username = username
         self.filename = file.name

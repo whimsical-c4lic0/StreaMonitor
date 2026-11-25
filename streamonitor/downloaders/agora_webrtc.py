@@ -56,28 +56,21 @@ class AgoraWebRTCBackend:
     def available(cls) -> bool:
         if any(importlib.util.find_spec(name) is None for name in _REQUIRED_MODULES):
             return False
-        return (
-            os.path.isfile(cls.worker_path())
-            and (shutil.which(cls.python_path()) is not None
-                 or os.path.isfile(cls.python_path()))
+        return os.path.isfile(cls.worker_path()) and (
+            shutil.which(cls.python_path()) is not None or os.path.isfile(cls.python_path())
         )
 
     @staticmethod
     def worker_path() -> str:
-        return os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "agora_worker.py")
-        )
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), "agora_worker.py"))
 
     @staticmethod
     def project_root() -> str:
-        return os.path.abspath(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        )
+        return os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
     # -- lifecycle ---------------------------------------------------------
 
-    def start(self, credentials, output: str, preferred_stream: str = "high",
-              max_duration: int = 0) -> None:
+    def start(self, credentials, output: str, preferred_stream: str = "high", max_duration: int = 0) -> None:
         if not self.available():
             raise AgoraBackendUnavailable(
                 "Agora WebRTC recorder is not available: install aiortc, av, "
@@ -114,8 +107,10 @@ class AgoraWebRTCBackend:
         env["PYTHONPATH"] = root + os.pathsep + env.get("PYTHONPATH", "")
         cmd = [
             self.python_path(),
-            "-m", "streamonitor.downloaders.agora_worker",
-            "--config", self._config_path,
+            "-m",
+            "streamonitor.downloaders.agora_worker",
+            "--config",
+            self._config_path,
         ]
         try:
             self._process = subprocess.Popen(
@@ -130,15 +125,11 @@ class AgoraWebRTCBackend:
             )
         except OSError as error:
             self._delete_config()
-            raise AgoraBackendUnavailable(
-                f"failed to start Agora WebRTC worker: {error}"
-            ) from error
+            raise AgoraBackendUnavailable(f"failed to start Agora WebRTC worker: {error}") from error
 
-        self._stdout_thread = threading.Thread(
-            target=self._read_stdout, name="agora-worker-events", daemon=True)
+        self._stdout_thread = threading.Thread(target=self._read_stdout, name="agora-worker-events", daemon=True)
         self._stdout_thread.start()
-        self._stderr_thread = threading.Thread(
-            target=self._read_stderr, name="agora-worker-stderr", daemon=True)
+        self._stderr_thread = threading.Thread(target=self._read_stderr, name="agora-worker-stderr", daemon=True)
         self._stderr_thread.start()
 
     def _delete_config(self) -> None:

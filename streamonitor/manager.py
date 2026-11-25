@@ -127,15 +127,12 @@ class Manager(Thread):
             return "Streamer not found"
         self.do_stop(streamer, username, site)
         return self.do_start(streamer, username, site)
-        
+
     def do_status(self, streamer, username, site):
         output = [["Username", "Site", "Started", "Status"]]
 
         def line():
-            output.append([streamer.username,
-                           streamer.site,
-                           streamer.running,
-                           streamer.status()])
+            output.append([streamer.username, streamer.site, streamer.running, streamer.status()])
 
         if streamer:
             line()
@@ -147,13 +144,13 @@ class Manager(Thread):
     def do_status2(self, streamer, username, site):
         maxlen = max([len(s.username) for s in self.streamers] or [0])
         termwidth = terminaltables.terminal_io.terminal_size()[0]
-        table_nx = math.floor(termwidth/(maxlen+3))
+        table_nx = math.floor(termwidth / (maxlen + 3))
         output = ''
         output += 'Status:\n'
 
         for site in LOADED_SITES:
             output += site.site + '\n'
-            output += ('+' + '-'*(maxlen+2))*table_nx + '+\n'
+            output += ('+' + '-' * (maxlen + 2)) * table_nx + '+\n'
             site_name = site.site
             i = 0
             for streamer in self.streamers:
@@ -161,11 +158,17 @@ class Manager(Thread):
                     output += '!'
                     status_color = None
                     status = streamer.sc
-                    if status == Status.PUBLIC: status_color = 'green'
-                    if status == Status.PRIVATE: status_color = 'magenta'
-                    if status == Status.ERROR: status_color = 'red'
-                    if not streamer.running: status_color = 'grey'
-                    output += colored(' ' + streamer.username + ' '*(maxlen-len(streamer.username)) + ' ', status_color)
+                    if status == Status.PUBLIC:
+                        status_color = 'green'
+                    if status == Status.PRIVATE:
+                        status_color = 'magenta'
+                    if status == Status.ERROR:
+                        status_color = 'red'
+                    if not streamer.running:
+                        status_color = 'grey'
+                    output += colored(
+                        ' ' + streamer.username + ' ' * (maxlen - len(streamer.username)) + ' ', status_color
+                    )
                     i += 1
                     if i == table_nx:
                         output += '!\n'
@@ -173,6 +176,6 @@ class Manager(Thread):
             for r in range(i, table_nx):
                 output += '! ' + ' ' * maxlen + ' '
             output += '!\n'
-            output += ('+' + '-'*(maxlen+2))*table_nx + '+\n'
+            output += ('+' + '-' * (maxlen + 2)) * table_nx + '+\n'
             output += '\n'
         return output

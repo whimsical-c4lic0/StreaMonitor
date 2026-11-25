@@ -49,10 +49,12 @@ class ManyVids(AgoraBot):
 
     def _headers(self, json_response=True):
         headers = dict(self.headers)
-        headers.update({
-            "Referer": _REFERER,
-            "Origin": _ORIGIN,
-        })
+        headers.update(
+            {
+                "Referer": _REFERER,
+                "Origin": _ORIGIN,
+            }
+        )
         if json_response:
             headers["Accept"] = "application/json, text/plain, */*"
         return headers
@@ -87,10 +89,7 @@ class ManyVids(AgoraBot):
             )
             match = handle_pattern.search(response.text)
         if not match:
-            raise RuntimeError(
-                "ManyVids profile page did not contain the user id; the page "
-                "layout may have changed"
-            )
+            raise RuntimeError("ManyVids profile page did not contain the user id; the page layout may have changed")
         self.user_id = match.group(1)
         self.logger.debug(f"Resolved ManyVids user id: {self.user_id}")
         return self.user_id

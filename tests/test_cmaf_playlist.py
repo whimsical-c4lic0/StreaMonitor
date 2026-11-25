@@ -18,16 +18,10 @@ from streamonitor.sites import myfreecams
 from streamonitor.sites.chaturbate import Chaturbate
 from streamonitor.sites.myfreecams import MyFreeCams
 
-MASTER_URL = (
-    "https://edgevideo.example/llhls/NxServer/1050/"
-    "ngrp:mfc_a_147386996.f4v_cmaf/playlist_cmaf.m3u8"
-)
+MASTER_URL = "https://edgevideo.example/llhls/NxServer/1050/ngrp:mfc_a_147386996.f4v_cmaf/playlist_cmaf.m3u8"
 BASE_URL = MASTER_URL.rsplit("/", 1)[0] + "/"
 
-MFC_MASTER_URL = (
-    "https://edgevideo.myfreecams.com/llhls/NxServer/1050/"
-    "ngrp:mfc_a_147386996.f4v_cmaf/playlist_cmaf.m3u8"
-)
+MFC_MASTER_URL = "https://edgevideo.myfreecams.com/llhls/NxServer/1050/ngrp:mfc_a_147386996.f4v_cmaf/playlist_cmaf.m3u8"
 MFC_BASE_URL = MFC_MASTER_URL.rsplit("/", 1)[0] + "/"
 
 CB_MASTER_URL = "https://chaturbate.example/live-edge/llhls.m3u8"

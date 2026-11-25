@@ -56,10 +56,7 @@ class AgoraStream:
 
     def __str__(self) -> str:
         # Never include the token in logs, the web UI, or test output.
-        return (
-            f"{self.label} channel={self.credentials.channel} "
-            f"uid={self.credentials.uid}"
-        )
+        return f"{self.label} channel={self.credentials.channel} uid={self.credentials.uid}"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -92,8 +89,7 @@ def _segment_prefix(filename: str, suffix: str = "") -> tuple[str, str]:
     return folder, f"{username}-%Y%m%d-%H%M%S{suffix}.{CONTAINER}"
 
 
-def finalize_recording(source: str, filename: str, logger=None,
-                       suffix: str = "") -> bool:
+def finalize_recording(source: str, filename: str, logger=None, suffix: str = "") -> bool:
     """Remux a recorder file into the configured container.
 
     Returns ``True`` only when ffmpeg produced at least one non-empty output
@@ -112,13 +108,19 @@ def finalize_recording(source: str, filename: str, logger=None,
     before: set[str] = set()
     if parameters.SEGMENT_TIME is not None:
         before = set(glob.glob(os.path.join(folder, f"*{suffix}.{container}")))
-        cmd.extend([
-            "-f", "segment",
-            "-reset_timestamps", "1",
-            "-segment_time", str(parameters.SEGMENT_TIME),
-            "-strftime", "1",
-            os.path.join(folder, segment_pattern),
-        ])
+        cmd.extend(
+            [
+                "-f",
+                "segment",
+                "-reset_timestamps",
+                "1",
+                "-segment_time",
+                str(parameters.SEGMENT_TIME),
+                "-strftime",
+                "1",
+                os.path.join(folder, segment_pattern),
+            ]
+        )
         output_path = None
     else:
         output_path = os.path.splitext(filename)[0] + "." + container
@@ -139,10 +141,7 @@ def finalize_recording(source: str, filename: str, logger=None,
 
     if result.returncode != 0:
         if logger is not None:
-            logger.error(
-                "ffmpeg could not finalize the Agora recording "
-                f"(exit code {result.returncode})"
-            )
+            logger.error(f"ffmpeg could not finalize the Agora recording (exit code {result.returncode})")
         return False
 
     if output_path is not None:
@@ -232,10 +231,7 @@ class AgoraDownloader:
 
     def _validate(self) -> bool:
         credentials = self.stream.credentials
-        missing = [
-            name for name in ("app_id", "channel", "uid")
-            if getattr(credentials, name) in (None, "")
-        ]
+        missing = [name for name in ("app_id", "channel", "uid") if getattr(credentials, name) in (None, "")]
         if missing:
             self._log(
                 "error",
@@ -245,8 +241,7 @@ class AgoraDownloader:
         if parameters.AGORA_BACKEND.lower() != "webrtc":
             self._log(
                 "error",
-                f"Unsupported Agora backend {parameters.AGORA_BACKEND!r}; "
-                "only 'webrtc' is implemented",
+                f"Unsupported Agora backend {parameters.AGORA_BACKEND!r}; only 'webrtc' is implemented",
             )
             return False
         if self.stream.preferred_stream not in ("high", "low"):
@@ -319,8 +314,7 @@ class AgoraDownloader:
                         failed = True
                         self._log(
                             "error",
-                            "Agora recorder error: "
-                            f"{event.get('message')} (code {event.get('code')})",
+                            f"Agora recorder error: {event.get('message')} (code {event.get('code')})",
                         )
                         stopped_event = True
                     elif name == "token_expiring":
@@ -340,8 +334,7 @@ class AgoraDownloader:
                             # that was already finalized.
                             self._log(
                                 "debug",
-                                f"Agora recorder process ended with code {code} "
-                                "after finalizing the file",
+                                f"Agora recorder process ended with code {code} after finalizing the file",
                             )
                         break
 
@@ -368,8 +361,7 @@ class AgoraDownloader:
                         else:
                             self._log(
                                 "warning",
-                                "Agora token refresh failed; keeping the current token "
-                                "until it expires",
+                                "Agora token refresh failed; keeping the current token until it expires",
                             )
 
                 timeout = parameters.AGORA_JOIN_TIMEOUT
@@ -433,10 +425,7 @@ class AgoraDownloader:
             return None, False
         if new_credentials is None:
             return None, False
-        if (
-            new_credentials.channel != credentials.channel
-            or str(new_credentials.uid) != str(credentials.uid)
-        ):
+        if new_credentials.channel != credentials.channel or str(new_credentials.uid) != str(credentials.uid):
             return new_credentials, True
         if not backend.renew_token(new_credentials.token or ""):
             self._log("warning", "Agora token refresh succeeded but could not be sent")
@@ -451,10 +440,7 @@ class AgoraDownloader:
         if os.path.isfile(temp) and os.path.getsize(temp) > 0:
             return temp
         base = os.path.splitext(temp)[0]
-        candidates = [
-            path for path in glob.glob(base + "*.mp4")
-            if os.path.isfile(path) and os.path.getsize(path) > 0
-        ]
+        candidates = [path for path in glob.glob(base + "*.mp4") if os.path.isfile(path) and os.path.getsize(path) > 0]
         if not candidates:
             return None
         return max(candidates, key=os.path.getmtime)

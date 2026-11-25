@@ -17,7 +17,7 @@ def getVideoWSSVR(self, url, filename):
     if hasattr(self, 'filename_extra_suffix'):
         suffix = self.filename_extra_suffix
 
-    basefilename = filename[:-len('.' + CONTAINER)]
+    basefilename = filename[: -len('.' + CONTAINER)]
     filename = basefilename + suffix + '.' + CONTAINER
     tmpfilename = basefilename + '.tmp.mp4'
 

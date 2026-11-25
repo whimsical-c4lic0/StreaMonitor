@@ -32,7 +32,9 @@ class MyFreeCams(Bot):
         sid = self.attrs['data-cam-preview-server-id-value']
         mid = 100000000 + int(self.attrs['data-cam-preview-model-id-value'])
         a = 'a_' if self.attrs['data-cam-preview-is-wzobs-value'] == 'true' else ''
-        playlist_url = f"https://edgevideo.myfreecams.com/llhls/NxServer/{sid}/ngrp:mfc_{a}{mid}.f4v_cmaf/playlist_cmaf.m3u8"
+        playlist_url = (
+            f"https://edgevideo.myfreecams.com/llhls/NxServer/{sid}/ngrp:mfc_{a}{mid}.f4v_cmaf/playlist_cmaf.m3u8"
+        )
         r = self.session.get(playlist_url)
         if r.status_code != 200:
             return None

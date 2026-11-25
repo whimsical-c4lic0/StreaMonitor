@@ -11,22 +11,21 @@ class AmateurTV(Bot):
         sources = []
         for resolution in self.lastInfo['qualities']:
             width, height = resolution.split('x')
-            sources.append({
-                'url': f"{self.lastInfo['videoTechnologies']['fmp4']}&variant={height}",
-                'resolution': (int(width), int(height)),
-                'frame_rate': None,
-                'bandwidth': None
-            })
+            sources.append(
+                {
+                    'url': f"{self.lastInfo['videoTechnologies']['fmp4']}&variant={height}",
+                    'resolution': (int(width), int(height)),
+                    'frame_rate': None,
+                    'bandwidth': None,
+                }
+            )
         return sources
 
     def getVideoUrl(self):
         return self.getWantedResolutionPlaylist(None)
 
     def getStatus(self):
-        headers = self.headers | {
-            'Content-Type': 'application/json',
-            'Referer': 'https://amateur.tv/'
-        }
+        headers = self.headers | {'Content-Type': 'application/json', 'Referer': 'https://amateur.tv/'}
         r = self.session.get(f'https://www.amateur.tv/v3/readmodel/show/{self.username}/en', headers=headers)
 
         if r.status_code != 200:

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 _logger = log.Logger("utils")
-    
+
 
 def get_streamer_context(streamer: Bot, sort_by_size: bool, play_video: str, user_agent: str) -> StreamerContext:
     videos: Dict[str, VideoData] = {}

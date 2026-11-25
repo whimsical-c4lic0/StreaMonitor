@@ -85,11 +85,7 @@ _MEDIA_SUFFIXES = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".wmv", ".ts"}
 def _media_files(folder: Path) -> list[Path]:
     if not folder.is_dir():
         return []
-    return [
-        path
-        for path in folder.rglob("*")
-        if path.is_file() and path.suffix.lower() in _MEDIA_SUFFIXES
-    ]
+    return [path for path in folder.rglob("*") if path.is_file() and path.suffix.lower() in _MEDIA_SUFFIXES]
 
 
 def _active_media(folder: Path) -> list[Path]:
@@ -154,14 +150,9 @@ def _find_public_bot(site_cls, candidates: list[LiveCandidate]):
                 other_errors.append(error)
 
     if successful_probes == 0 and other_errors:
-        raise AssertionError(
-            f"no candidate could be probed because of non-connectivity errors: {attempts}"
-        )
+        raise AssertionError(f"no candidate could be probed because of non-connectivity errors: {attempts}")
     if successful_probes == 0 and connectivity_errors:
-        raise ConnectionError(
-            f"all {len(attempts)} status attempts failed to reach the site: "
-            f"{attempts[-1]}"
-        )
+        raise ConnectionError(f"all {len(attempts)} status attempts failed to reach the site: {attempts[-1]}")
     return None, attempts
 
 
@@ -193,9 +184,7 @@ def _record(bot, url, output_file: Path, seconds: int) -> str | None:
     thread = Thread(target=run, name=f"e2e-record-{bot.siteslug}", daemon=True)
     thread.start()
 
-    deadline = time.monotonic() + (
-        120 if isinstance(url, AgoraStream) else min(60, max(25, seconds * 2))
-    )
+    deadline = time.monotonic() + (120 if isinstance(url, AgoraStream) else min(60, max(25, seconds * 2)))
     first_data_at = None
     while time.monotonic() < deadline:
         if _active_media(folder):
@@ -280,8 +269,7 @@ def _probe_and_decode(path: Path, ffprobe: str, ffmpeg: str) -> dict:
         )
         if decode.returncode != 0:
             raise AssertionError(
-                f"ffmpeg could not decode the {stream_type} stream in {path}:\n"
-                f"{decode.stderr[-2000:]}"
+                f"ffmpeg could not decode the {stream_type} stream in {path}:\n{decode.stderr[-2000:]}"
             )
 
     return {
@@ -292,9 +280,7 @@ def _probe_and_decode(path: Path, ffprobe: str, ffmpeg: str) -> dict:
     }
 
 
-@pytest.mark.parametrize(
-    "site_cls", SITE_CLASSES, ids=[site.siteslug for site in SITE_CLASSES]
-)
+@pytest.mark.parametrize("site_cls", SITE_CLASSES, ids=[site.siteslug for site in SITE_CLASSES])
 def test_live_site_records_video_and_audio(
     site_cls,
     download_root,
@@ -321,46 +307,31 @@ def test_live_site_records_video_and_audio(
         pytest.skip(str(error))
 
     if bot is None:
-        pytest.skip(
-            f"no public {site_cls.site} model among {len(attempts)} candidates: "
-            + "; ".join(attempts[:8])
-        )
+        pytest.skip(f"no public {site_cls.site} model among {len(attempts)} candidates: " + "; ".join(attempts[:8]))
 
     assert bot.sc == Status.PUBLIC, f"expected PUBLIC, got {bot.sc}"
     url = bot.getVideoUrl()
     assert url is not None, f"{site_cls.siteslug}/{bot.username} returned no video URL"
     if isinstance(url, AgoraStream) and not AgoraWebRTCBackend.available():
-        pytest.skip(
-            "the Agora WebRTC recorder dependencies are missing; run "
-            "`uv sync` (or use the Docker image)"
-        )
+        pytest.skip("the Agora WebRTC recorder dependencies are missing; run `uv sync` (or use the Docker image)")
 
     output_file = Path(bot.genOutFilename())
     folder = Path(bot.outputFolder)
-    print(
-        f"\n[e2e] {site_cls.siteslug}/{bot.username}: recording {url!s} "
-        f"for ~{record_seconds}s into {folder}"
-    )
+    print(f"\n[e2e] {site_cls.siteslug}/{bot.username}: recording {url!s} for ~{record_seconds}s into {folder}")
 
     error = _record(bot, url, output_file, record_seconds)
     media = _media_files(folder)
     if error:
-        raise AssertionError(
-            f"{site_cls.siteslug}/{bot.username}: {error}; files={media}"
-        )
+        raise AssertionError(f"{site_cls.siteslug}/{bot.username}: {error}; files={media}")
     if not media:
-        raise AssertionError(
-            f"{site_cls.siteslug}/{bot.username}: recording produced no media files "
-            f"in {folder}"
-        )
+        raise AssertionError(f"{site_cls.siteslug}/{bot.username}: recording produced no media files in {folder}")
 
     # The largest file is the completed recording (native-HLS and websocket
     # downloaders leave intermediate files behind only on failure).
     path = max(media, key=lambda item: item.stat().st_size)
     if path.stat().st_size < 4096:
         raise AssertionError(
-            f"{site_cls.siteslug}/{bot.username}: recording is only "
-            f"{path.stat().st_size} bytes: {path}"
+            f"{site_cls.siteslug}/{bot.username}: recording is only {path.stat().st_size} bytes: {path}"
         )
 
     details = _probe_and_decode(path, ffprobe_bin, ffmpeg_bin)

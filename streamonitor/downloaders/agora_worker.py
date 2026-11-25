@@ -43,8 +43,7 @@ _CHOOSE_HOSTS = (
 _SDK_VERSION = "4.23.1"
 _CODEC = "vp8"
 _DEFAULT_UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 _MEDIA_TIMEOUT = 30.0
 _VIDEO_START_TIMEOUT = 10.0
@@ -206,10 +205,7 @@ def _choose_server(credentials: AgoraCredentials, user_agent: str):
         if not gateway or gateway.get("code") != 0:
             last_error = f"{host}: gateway code {gateway.get('code') if gateway else '?'}"
             continue
-        edges = [
-            edge for edge in gateway.get("edges_services") or []
-            if edge.get("ip") and edge.get("port")
-        ]
+        edges = [edge for edge in gateway.get("edges_services") or [] if edge.get("ip") and edge.get("port")]
         if not edges:
             last_error = f"{host}: no gateway edge"
             continue
@@ -271,15 +267,17 @@ def _parse_media_sections(sdp: str):
                 left, right = line[10:].split(None, 1)
                 codec = codecs.setdefault(int(left), {})
                 codec.setdefault("fb", []).append(right.strip())
-        sections.append({
-            "kind": kind,
-            "mid": mid,
-            "ufrag": ufrag,
-            "pwd": pwd,
-            "fingerprint": fingerprint,
-            "setup": setup,
-            "codecs": codecs,
-        })
+        sections.append(
+            {
+                "kind": kind,
+                "mid": mid,
+                "ufrag": ufrag,
+                "pwd": pwd,
+                "fingerprint": fingerprint,
+                "setup": setup,
+                "codecs": codecs,
+            }
+        )
     return sections
 
 
@@ -303,33 +301,34 @@ def _build_local_ortc(offer_sdp: str):
             }
             if codec.get("channels", 1) > 1:
                 rtp_map["encodingParameters"] = codec["channels"]
-            result.append({
-                "payloadType": payload_type,
-                "rtpMap": rtp_map,
-                "rtcpFeedbacks": [
-                    ({"type": entry.split(" ", 1)[0], "parameter": entry.split(" ", 1)[1]}
-                     if " " in entry else {"type": entry})
-                    for entry in feedback
-                ],
-                "fmtp": {"parameters": codec.get("fmtp", {})},
-            })
+            result.append(
+                {
+                    "payloadType": payload_type,
+                    "rtpMap": rtp_map,
+                    "rtcpFeedbacks": [
+                        (
+                            {"type": entry.split(" ", 1)[0], "parameter": entry.split(" ", 1)[1]}
+                            if " " in entry
+                            else {"type": entry}
+                        )
+                        for entry in feedback
+                    ],
+                    "fmtp": {"parameters": codec.get("fmtp", {})},
+                }
+            )
         return result
 
     empty = {"audioCodecs": [], "audioExtensions": [], "videoCodecs": [], "videoExtensions": []}
     return {
         "iceParameters": {"iceUfrag": audio["ufrag"], "icePwd": audio["pwd"]},
-        "dtlsParameters": {
-            "fingerprints": [{"hashFunction": algorithm, "fingerprint": value}]
-        },
+        "dtlsParameters": {"fingerprints": [{"hashFunction": algorithm, "fingerprint": value}]},
         "rtpCapabilities": {
             "send": empty,
             "recv": empty,
             "sendrecv": {
                 "audioCodecs": codec_list(audio, {"opus"}, ["transport-cc", "nack"]),
                 "audioExtensions": [],
-                "videoCodecs": codec_list(
-                    video, {"vp8", "h264"}, ["transport-cc", "nack", "nack pli", "ccm fir"]
-                ),
+                "videoCodecs": codec_list(video, {"vp8", "h264"}, ["transport-cc", "nack", "nack pli", "ccm fir"]),
                 "videoExtensions": [],
             },
         },
@@ -402,22 +401,15 @@ def _build_answer_sdp(offer_sdp: str, server_ortc: dict) -> str:
             for feedback in codec.get("rtcpFeedbacks") or []:
                 parameter = feedback.get("parameter")
                 lines.append(
-                    f"a=rtcp-fb:{payload_type} {feedback.get('type')}"
-                    + (f" {parameter}" if parameter else "")
+                    f"a=rtcp-fb:{payload_type} {feedback.get('type')}" + (f" {parameter}" if parameter else "")
                 )
             fmtp = (codec.get("fmtp") or {}).get("parameters") or {}
             if fmtp:
-                lines.append(
-                    f"a=fmtp:{payload_type} "
-                    + ";".join(f"{key}={value}" for key, value in fmtp.items())
-                )
+                lines.append(f"a=fmtp:{payload_type} " + ";".join(f"{key}={value}" for key, value in fmtp.items()))
             elif section["codecs"][payload_type].get("fmtp"):
                 lines.append(
                     f"a=fmtp:{payload_type} "
-                    + ";".join(
-                        f"{key}={value}"
-                        for key, value in section["codecs"][payload_type]["fmtp"].items()
-                    )
+                    + ";".join(f"{key}={value}" for key, value in section["codecs"][payload_type]["fmtp"].items())
                 )
     return "\r\n".join(lines) + "\r\n"
 
@@ -443,7 +435,9 @@ class _Mp4Writer:
         if self.container is not None:
             return
         self.container = av.open(
-            self.output, mode="w", format="mp4",
+            self.output,
+            mode="w",
+            format="mp4",
             options={"movflags": "frag_keyframe+empty_moov"},
         )
         if with_video:
@@ -529,17 +523,13 @@ class _Mp4Writer:
         if self._audio_buffer is None:
             self._audio_buffer = planar.copy()
         else:
-            self._audio_buffer = np.ascontiguousarray(
-                np.concatenate((self._audio_buffer, planar), axis=1)
-            )
+            self._audio_buffer = np.ascontiguousarray(np.concatenate((self._audio_buffer, planar), axis=1))
         if self._audio_next_pts is None:
             now = self._time(frame)
             if now is not None:
                 if self.base_time is None:
                     self.base_time = now
-                self._audio_next_pts = max(
-                    0, int(round((now - self.base_time) * 48000))
-                )
+                self._audio_next_pts = max(0, int(round((now - self.base_time) * 48000)))
             else:
                 self._audio_next_pts = max(0, self.audio_last_pts + 1)
 
@@ -547,12 +537,8 @@ class _Mp4Writer:
         # Keep a small PCM FIFO and emit exact AAC frames.
         frame_size = self.audio.frame_size or 1024
         while self._audio_buffer.shape[1] >= frame_size:
-            chunk = np.ascontiguousarray(
-                self._audio_buffer[:, :frame_size], dtype=np.float32
-            )
-            av_frame = av.AudioFrame.from_ndarray(
-                chunk, format="fltp", layout="stereo"
-            )
+            chunk = np.ascontiguousarray(self._audio_buffer[:, :frame_size], dtype=np.float32)
+            av_frame = av.AudioFrame.from_ndarray(chunk, format="fltp", layout="stereo")
             av_frame.sample_rate = 48000
             av_frame.time_base = Fraction(1, 48000)
             av_frame.pts = self._audio_next_pts
@@ -560,9 +546,7 @@ class _Mp4Writer:
             self._audio_next_pts += frame_size
             self.audio_last_pts = av_frame.pts
             self.audio_frame += av_frame.samples
-            self._audio_buffer = np.ascontiguousarray(
-                self._audio_buffer[:, frame_size:], dtype=np.float32
-            )
+            self._audio_buffer = np.ascontiguousarray(self._audio_buffer[:, frame_size:], dtype=np.float32)
 
     def close(self) -> None:
         if self.container is None:
@@ -573,9 +557,7 @@ class _Mp4Writer:
             if remaining:
                 padded = np.zeros((2, frame_size), dtype=np.float32)
                 padded[:, :remaining] = self._audio_buffer
-                av_frame = av.AudioFrame.from_ndarray(
-                    np.ascontiguousarray(padded), format="fltp", layout="stereo"
-                )
+                av_frame = av.AudioFrame.from_ndarray(np.ascontiguousarray(padded), format="fltp", layout="stereo")
                 av_frame.sample_rate = 48000
                 av_frame.time_base = Fraction(1, 48000)
                 av_frame.pts = self._audio_next_pts or 0
@@ -766,13 +748,9 @@ class _Session:
         )
         loop = asyncio.get_running_loop()
         self.media_started = time.monotonic()
-        ap_response, edges, cert = await loop.run_in_executor(
-            None, _choose_server, credentials, self.user_agent
-        )
+        ap_response, edges, cert = await loop.run_in_executor(None, _choose_server, credentials, self.user_agent)
         edge = edges[0]
-        uri = (
-            f"wss://{edge['ip'].replace('.', '-')}.edge.agora.io:{int(edge['port'])}"
-        )
+        uri = f"wss://{edge['ip'].replace('.', '-')}.edge.agora.io:{int(edge['port'])}"
         ws = await connect(
             uri,
             additional_headers={"User-Agent": self.user_agent},
@@ -924,9 +902,7 @@ async def _run_config(config: dict) -> int:
             loop.add_signal_handler(signum, session.stop_event.set)
         except (NotImplementedError, RuntimeError):
             pass
-    threading.Thread(
-        target=_read_command, args=(session, loop), name="agora-worker-stdin", daemon=True
-    ).start()
+    threading.Thread(target=_read_command, args=(session, loop), name="agora-worker-stdin", daemon=True).start()
     return await session.run()
 
 

@@ -25,11 +25,7 @@ class StripChat(RoomIdBot):
     _PRIVATE_STATUSES = frozenset(["private", "groupShow", "p2p", "virtualPrivate", "p2pVoice"])
     _OFFLINE_STATUSES = frozenset(["off", "idle"])
 
-    _GENDER_MAP = {
-        'female': Gender.FEMALE,
-        'male': Gender.MALE,
-        'maleFemale': Gender.BOTH
-    }
+    _GENDER_MAP = {'female': Gender.FEMALE, 'male': Gender.MALE, 'maleFemale': Gender.BOTH}
 
     if os.path.exists(_mouflon_cache_filename):
         with open(_mouflon_cache_filename) as f:
@@ -69,8 +65,11 @@ class StripChat(RoomIdBot):
         def _decode(encrypted_b64: str, key: str) -> str:
             if cls._cached_keys is None:
                 cls._cached_keys = {}
-            hash_bytes = cls._cached_keys[key] if key in cls._cached_keys \
+            hash_bytes = (
+                cls._cached_keys[key]
+                if key in cls._cached_keys
                 else cls._cached_keys.setdefault(key, hashlib.sha256(key.encode("utf-8")).digest())
+            )
             encrypted_data = base64.b64decode(encrypted_b64 + "==")
             return bytes(a ^ b for (a, b) in zip(encrypted_data, itertools.cycle(hash_bytes))).decode("utf-8")
 
@@ -89,9 +88,9 @@ class StripChat(RoomIdBot):
         for line in lines:
             if line.startswith(_mouflon_file_attr):
                 if psch == 'v1':
-                    last_decoded_file = _decode(line[len(_mouflon_file_attr):], pdkey)
+                    last_decoded_file = _decode(line[len(_mouflon_file_attr) :], pdkey)
                 elif psch == 'v2':
-                    uri = line[len(_mouflon_file_attr):]
+                    uri = line[len(_mouflon_file_attr) :]
                     encoded_part = uri.split('_')[-2]
                     decoded_part = _decode(encoded_part[::-1], pdkey)
                     last_decoded_file = uri.replace(encoded_part, decoded_part).split('/', maxsplit=4)[4]
@@ -118,7 +117,7 @@ class StripChat(RoomIdBot):
         while _needle in (_doc := m3u8_doc[_start:]):
             _mouflon_start = _doc.find(_needle)
             if _mouflon_start > 0:
-                _mouflon = _doc[_mouflon_start:m3u8_doc.find('\n', _mouflon_start)].strip().split(':')
+                _mouflon = _doc[_mouflon_start : m3u8_doc.find('\n', _mouflon_start)].strip().split(':')
                 psch = _mouflon[2]
                 pkey = _mouflon[3]
                 pdkey = StripChat.getMouflonDecKey(pkey)
@@ -135,11 +134,11 @@ class StripChat(RoomIdBot):
 
     def getPlaylistVariants(self, url):
         url = "https://edge-hls.{host}/hls/{id}{vr}/master/{id}{vr}{auto}.m3u8".format(
-                host='doppiocdn.' + random.choice(['org', 'com', 'net']),
-                id=self.room_id,
-                vr='_vr' if self.vr else '',
-                auto='_auto' if not self.vr else ''
-            )
+            host='doppiocdn.' + random.choice(['org', 'com', 'net']),
+            id=self.room_id,
+            vr='_vr' if self.vr else '',
+            auto='_auto' if not self.vr else '',
+        )
         result = self.session.get(url, headers=self.headers, cookies=self.cookies)
         m3u8_doc = result.content.decode("utf-8")
         psch, pkey, pdkey = StripChat._getMouflonFromM3U(m3u8_doc)
@@ -147,8 +146,10 @@ class StripChat(RoomIdBot):
             self.log(f'Failed to get mouflon decryption key')
             return []
         variants = super().getPlaylistVariants(m3u_data=m3u8_doc)
-        return [variant | {'url': f'{variant["url"]}{"&" if "?" in variant["url"] else "?"}psch={psch}&pkey={pkey}'}
-                for variant in variants]
+        return [
+            variant | {'url': f'{variant["url"]}{"&" if "?" in variant["url"] else "?"}psch={psch}&pkey={pkey}'}
+            for variant in variants
+        ]
 
     def _getStatusSession(self):
         # Plain requests (not the curl_cffi session used by Bot) - the ID based
@@ -165,10 +166,7 @@ class StripChat(RoomIdBot):
         if not refresh and cache_key in StripChat._user_id_cache:
             return StripChat._user_id_cache[cache_key]
 
-        r = self._getStatusSession().get(
-            f'https://stripchat.com/api/front/users/user-ids/{username}',
-            timeout=10
-        )
+        r = self._getStatusSession().get(f'https://stripchat.com/api/front/users/user-ids/{username}', timeout=10)
         if r.status_code == 404:
             StripChat._user_id_cache.pop(cache_key, None)
             return None
@@ -188,20 +186,14 @@ class StripChat(RoomIdBot):
                 self.log('No user ID found')
                 return None
 
-            r = self._getStatusSession().get(
-                f'https://stripchat.com/api/front/v2/models/{user_id}/cam',
-                timeout=10
-            )
+            r = self._getStatusSession().get(f'https://stripchat.com/api/front/v2/models/{user_id}/cam', timeout=10)
             if r.status_code == 404:
                 # The cached ID can be stale (room renamed or recreated), retry once.
                 user_id = self._resolveUserId(username, refresh=True)
                 if user_id is None:
                     self.log('No user ID found')
                     return None
-                r = self._getStatusSession().get(
-                    f'https://stripchat.com/api/front/v2/models/{user_id}/cam',
-                    timeout=10
-                )
+                r = self._getStatusSession().get(f'https://stripchat.com/api/front/v2/models/{user_id}/cam', timeout=10)
             if r.status_code != 200:
                 self.log(f'Status API returned HTTP {r.status_code}')
                 return None
@@ -306,7 +298,7 @@ class StripChat(RoomIdBot):
         batch_num = 100
         data_map = {}
         model_id_list = list(model_ids)
-        for _batch_ids in [model_id_list[i:i+batch_num] for i in range(0, len(model_id_list), batch_num)]:
+        for _batch_ids in [model_id_list[i : i + batch_num] for i in range(0, len(model_id_list), batch_num)]:
             session = requests.Session()
             session.headers.update(cls.headers)
             r = session.get(base_url + '&'.join(f'modelIds[]={model_id}' for model_id in _batch_ids), timeout=10)

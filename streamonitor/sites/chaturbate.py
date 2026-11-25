@@ -23,10 +23,10 @@ class Chaturbate(Bot):
         super().__init__(username)
         self.sleep_on_offline = 30
         self.sleep_on_error = 60
-    
+
     def getWebsiteURL(self):
         return "https://www.chaturbate.com/" + self.username
-    
+
     def getVideoUrl(self):
         if self.bulk_update:
             self.getStatus()

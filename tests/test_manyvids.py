@@ -57,15 +57,13 @@ def test_status_public_and_safe_last_info(monkeypatch):
 
 def test_status_private(monkeypatch):
     bot = ManyVids("101")
-    patch_get(monkeypatch, bot, FakeResponse(
-        200, {"room_state": "ONLINE", "streaming_state": "PRIVATE"}))
+    patch_get(monkeypatch, bot, FakeResponse(200, {"room_state": "ONLINE", "streaming_state": "PRIVATE"}))
     assert bot.getStatus() == Status.PRIVATE
 
 
 def test_status_offline(monkeypatch):
     bot = ManyVids("101")
-    patch_get(monkeypatch, bot, FakeResponse(
-        200, {"room_state": "OFFLINE", "streaming_state": "PUBLIC"}))
+    patch_get(monkeypatch, bot, FakeResponse(200, {"room_state": "OFFLINE", "streaming_state": "PUBLIC"}))
     assert bot.getStatus() == Status.OFFLINE
 
 
@@ -120,10 +118,7 @@ def test_resolve_handle_from_profile_page(monkeypatch):
 def test_resolve_handle_from_profile_link(monkeypatch):
     """Current builds omit profileURL, so the handle-specific link is used."""
     bot = ManyVids("alice")
-    html = (
-        '<a href="/Profile/999/other/live">other</a>'
-        '<a href="/Profile/101/alice/live">alice</a>'
-    )
+    html = '<a href="/Profile/999/other/live">other</a><a href="/Profile/101/alice/live">alice</a>'
     responses = [
         FakeResponse(200, text=html),
         FakeResponse(200, {"room_state": "ONLINE", "streaming_state": "PUBLIC"}),
@@ -145,22 +140,28 @@ def test_join_channel_builds_credentials_and_refresh(monkeypatch):
     bot.lastInfo = {"streaming_state": "PUBLIC"}
 
     responses = [
-        FakeResponse(200, {
-            "meetingInfo": {
-                "channelId": "channel-1",
-                "rtc": "SECRET",
-                "uid": 4118716069,
-                "expires": 86400000,
-            }
-        }),
-        FakeResponse(200, {
-            "meetingInfo": {
-                "channelId": "channel-1",
-                "rtc": "SECOND",
-                "uid": 4118716069,
-                "expires": 86400000,
-            }
-        }),
+        FakeResponse(
+            200,
+            {
+                "meetingInfo": {
+                    "channelId": "channel-1",
+                    "rtc": "SECRET",
+                    "uid": 4118716069,
+                    "expires": 86400000,
+                }
+            },
+        ),
+        FakeResponse(
+            200,
+            {
+                "meetingInfo": {
+                    "channelId": "channel-1",
+                    "rtc": "SECOND",
+                    "uid": 4118716069,
+                    "expires": 86400000,
+                }
+            },
+        ),
     ]
     calls = []
 
@@ -191,8 +192,7 @@ def test_join_channel_refuses_private_room(monkeypatch):
     bot = ManyVids("101")
     bot.lastInfo = {"streaming_state": "PRIVATE"}
     calls = []
-    monkeypatch.setattr(bot.session, "post",
-                        lambda *args, **kwargs: calls.append(args))
+    monkeypatch.setattr(bot.session, "post", lambda *args, **kwargs: calls.append(args))
     assert bot.getVideoUrl() is None
     assert calls == []
 
@@ -201,10 +201,9 @@ def test_join_channel_requires_all_credentials(monkeypatch):
     bot = ManyVids("101")
     bot.lastInfo = {"streaming_state": "PUBLIC"}
     monkeypatch.setattr(
-        bot.session, "post",
-        lambda *args, **kwargs: FakeResponse(200, {
-            "meetingInfo": {"channelId": "channel-1", "rtc": "SECRET"}
-        }),
+        bot.session,
+        "post",
+        lambda *args, **kwargs: FakeResponse(200, {"meetingInfo": {"channelId": "channel-1", "rtc": "SECRET"}}),
     )
     assert bot.getVideoUrl() is None
 
@@ -213,11 +212,17 @@ def test_join_channel_rejects_non_numeric_uid(monkeypatch):
     bot = ManyVids("101")
     bot.lastInfo = {"streaming_state": "PUBLIC"}
     monkeypatch.setattr(
-        bot.session, "post",
-        lambda *args, **kwargs: FakeResponse(200, {
-            "meetingInfo": {
-                "channelId": "channel-1", "rtc": "SECRET", "uid": "abc",
-            }
-        }),
+        bot.session,
+        "post",
+        lambda *args, **kwargs: FakeResponse(
+            200,
+            {
+                "meetingInfo": {
+                    "channelId": "channel-1",
+                    "rtc": "SECRET",
+                    "uid": "abc",
+                }
+            },
+        ),
     )
     assert bot.getVideoUrl() is None

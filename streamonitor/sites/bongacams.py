@@ -9,9 +9,11 @@ class BongaCams(Bot):
 
     def getWebsiteURL(self):
         return "https://bongacams.com/" + self.username
-    
+
     def getPlaylistUrl(self):
-        return "https:" + self.lastInfo['localData']['videoServerUrl'] + "/hls/stream_" + self.username + "/playlist.m3u8"
+        return (
+            "https:" + self.lastInfo['localData']['videoServerUrl'] + "/hls/stream_" + self.username + "/playlist.m3u8"
+        )
 
     def getVideoUrl(self):
         return self.getWantedResolutionPlaylist(self.getPlaylistUrl())
@@ -21,7 +23,7 @@ class BongaCams(Bot):
             'Content-Type': 'application/x-www-form-urlencoded',
             'Referer': 'https://de.bongacams.net/' + self.username,
             'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
         }
         data = 'method=getRoomData&args%5B%5D=' + self.username + '&args%5B%5D=false'
         r = self.session.post('https://de.bongacams.net/tools/amf.php', data=data, headers=headers)

@@ -17,7 +17,16 @@ from threading import Thread
 
 from streamonitor.enums import Status, COUNTRIES, Gender, GENDER_DATA
 import streamonitor.log as log
-from parameters import DOWNLOADS_DIR, DEBUG, WANTED_RESOLUTION, WANTED_RESOLUTION_PREFERENCE, CONTAINER, HTTP_USER_AGENT, FFMPEG_PATH, SEGMENT_TIME
+from parameters import (
+    DOWNLOADS_DIR,
+    DEBUG,
+    WANTED_RESOLUTION,
+    WANTED_RESOLUTION_PREFERENCE,
+    CONTAINER,
+    HTTP_USER_AGENT,
+    FFMPEG_PATH,
+    SEGMENT_TIME,
+)
 from streamonitor.downloaders.ffmpeg import getVideoFfmpeg
 from streamonitor.models import VideoData
 
@@ -38,9 +47,7 @@ class Bot(Thread):
     sleep_on_ratelimit = 180
     long_offline_timeout = 600
 
-    headers = {
-        "User-Agent": HTTP_USER_AGENT
-    }
+    headers = {"User-Agent": HTTP_USER_AGENT}
 
     html_headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -65,7 +72,7 @@ class Bot(Thread):
         Status.NOTEXIST: "Nonexistent user",
         Status.NOTRUNNING: "Not running",
         Status.ERROR: "Error on downloading",
-        Status.RESTRICTED: "Model is restricted, maybe geo-block"
+        Status.RESTRICTED: "Model is restricted, maybe geo-block",
     }
 
     def __init_subclass__(cls, **kwargs):
@@ -88,7 +95,7 @@ class Bot(Thread):
         self.cookieUpdater = None
         self.cookie_update_interval = 0
 
-        #this will store the latest status of the current model
+        # this will store the latest status of the current model
         self.previous_status = None
 
         self.lastInfo = {}  # This dict will hold information about stream after getStatus is called. One can use this in getVideoUrl
@@ -228,9 +235,10 @@ class Bot(Thread):
         """
         try:
             result = subprocess.run(
-                [FFMPEG_PATH, '-v', 'error', '-xerror', '-i', path,
-                 '-t', '0', '-f', 'null', '-'],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                [FFMPEG_PATH, '-v', 'error', '-xerror', '-i', path, '-t', '0', '-f', 'null', '-'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         except OSError as e:
             # Let the merge itself report a missing ffmpeg.
             self.logger.warning(e)
@@ -287,7 +295,8 @@ class Bot(Thread):
                 usable.append(part)
             else:
                 self.logger.warning(
-                    f'Recording part {os.path.basename(part)} is damaged, keeping it as a separate file')
+                    f'Recording part {os.path.basename(part)} is damaged, keeping it as a separate file'
+                )
 
         if base in existing and base not in usable:
             # Never replace a damaged file that still holds recorded media.
@@ -307,10 +316,25 @@ class Bot(Thread):
 
             self.log(f'Merging {len(usable)} recording parts into one file')
             result = subprocess.run(
-                [FFMPEG_PATH, '-hide_banner', '-loglevel', 'error',
-                 '-f', 'concat', '-safe', '0', '-i', list_path,
-                 '-c', 'copy', '-y', merged_path],
-                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                [
+                    FFMPEG_PATH,
+                    '-hide_banner',
+                    '-loglevel',
+                    'error',
+                    '-f',
+                    'concat',
+                    '-safe',
+                    '0',
+                    '-i',
+                    list_path,
+                    '-c',
+                    'copy',
+                    '-y',
+                    merged_path,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
             merged_size = os.path.getsize(merged_path) if os.path.exists(merged_path) else 0
             # The concat demuxer reports success even when it stops at a part
             # it cannot read, so a much smaller result means a partial merge.
@@ -326,7 +350,8 @@ class Bot(Thread):
                 output = result.stderr.decode('utf-8', 'replace').strip().splitlines()
                 self.logger.error(
                     'Could not merge recording parts, keeping them separate: '
-                    + (output[-1] if output else 'unknown error'))
+                    + (output[-1] if output else 'unknown error')
+                )
         except Exception as e:
             self.logger.exception(e)
         finally:
@@ -359,8 +384,7 @@ class Bot(Thread):
             if not match or not entry.is_file():
                 continue
             base = os.path.join(folder, match.group('stem') + match.group('ext'))
-            groups.setdefault(base, []).append(
-                (int(match.group('number')), entry.path))
+            groups.setdefault(base, []).append((int(match.group('number')), entry.path))
         result = {}
         for base, numbered in groups.items():
             parts = []
@@ -392,13 +416,12 @@ class Bot(Thread):
         ffmpeg remuxes it. A kill during the download leaves the file behind
         and the recorded bytes would otherwise never be playable.
         """
-        target = temp_path[:-len(self._TEMP_SUFFIX)] + '.' + CONTAINER
+        target = temp_path[: -len(self._TEMP_SUFFIX)] + '.' + CONTAINER
         if self._hasSegmentFiles(target):
             # SEGMENT_TIME splits the show into separate segment files; the
             # temp file is only the source for ffmpeg and does not belong in
             # the folder as an extra full recording.
-            self.log(f'Keeping {os.path.basename(temp_path)}, '
-                     'the show was already split into segment files')
+            self.log(f'Keeping {os.path.basename(temp_path)}, the show was already split into segment files')
             return False
         try:
             temp_size = os.path.getsize(temp_path)
@@ -423,14 +446,16 @@ class Bot(Thread):
             return True
 
         result = subprocess.run(
-            [FFMPEG_PATH, '-hide_banner', '-loglevel', 'error', '-y',
-             '-i', temp_path, '-c', 'copy', target],
-            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            [FFMPEG_PATH, '-hide_banner', '-loglevel', 'error', '-y', '-i', temp_path, '-c', 'copy', target],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
         if result.returncode != 0 or not os.path.exists(target) or os.path.getsize(target) == 0:
             output = result.stderr.decode('utf-8', 'replace').strip().splitlines()
             self.logger.warning(
                 f'Could not recover {os.path.basename(temp_path)}, keeping it: '
-                + (output[-1] if output else 'unknown error'))
+                + (output[-1] if output else 'unknown error')
+            )
             return False
         try:
             os.unlink(temp_path)
@@ -462,8 +487,7 @@ class Bot(Thread):
                         self._recoverTempRecording(entry.path)
                     except Exception as e:
                         self.logger.exception(e)
-                elif os.path.splitext(entry.name)[0].endswith('.merged') \
-                        or entry.name.endswith('.concat.txt'):
+                elif os.path.splitext(entry.name)[0].endswith('.merged') or entry.name.endswith('.concat.txt'):
                     # Left over from a merge that was killed. The parts are
                     # still there, so the merge below rebuilds it.
                     try:
@@ -521,8 +545,12 @@ class Bot(Thread):
                     # Errors while a show is running only interrupt the stream,
                     # so keep the recording open and resume it later.
                     if self.hasRecordingInProgress() and self.sc not in (
-                            Status.PUBLIC, Status.RESTRICTED, Status.ERROR,
-                            Status.RATELIMIT, Status.UNKNOWN):
+                        Status.PUBLIC,
+                        Status.RESTRICTED,
+                        Status.ERROR,
+                        Status.RATELIMIT,
+                        Status.UNKNOWN,
+                    ):
                         try:
                             self.finalizeRecording()
                             self.cache_file_list()
@@ -538,6 +566,7 @@ class Bot(Thread):
                         offline_time = 0
                         if self.sc == Status.PUBLIC:
                             if self.cookie_update_interval > 0 and self.cookieUpdater is not None:
+
                                 def update_cookie():
                                     while self.sc == Status.PUBLIC and not self.quitting and self.running:
                                         self._sleep(self.cookie_update_interval)
@@ -546,6 +575,7 @@ class Bot(Thread):
                                             self.debug('Updated cookies')
                                         else:
                                             self.logger.warning('Failed to update cookies')
+
                                 cookie_update_process = Thread(target=update_cookie)
                                 cookie_update_process.start()
 
@@ -642,12 +672,14 @@ class Bot(Thread):
         for playlist in variant_m3u8.playlists:
             stream_info = playlist.stream_info
             resolution = stream_info.resolution if type(stream_info.resolution) is tuple else (0, 0)
-            sources.append({
-                'url': playlist.uri,
-                'resolution': resolution,
-                'frame_rate': stream_info.frame_rate,
-                'bandwidth': stream_info.bandwidth
-            })
+            sources.append(
+                {
+                    'url': playlist.uri,
+                    'resolution': resolution,
+                    'frame_rate': stream_info.frame_rate,
+                    'bandwidth': stream_info.bandwidth,
+                }
+            )
 
         if not variant_m3u8.is_variant and len(sources) >= 1:
             self.logger.warn("Not variant playlist, can't select resolution")
@@ -706,7 +738,9 @@ class Bot(Thread):
                 frame_rate = ''
                 if selected_source['frame_rate'] is not None and selected_source['frame_rate'] != 0:
                     frame_rate = f" {selected_source['frame_rate']}fps"
-                self.logger.info(f"Selected {selected_source['resolution'][0]}x{selected_source['resolution'][1]}{frame_rate} resolution")
+                self.logger.info(
+                    f"Selected {selected_source['resolution'][0]}x{selected_source['resolution'][1]}{frame_rate} resolution"
+                )
             selected_source_url = selected_source['url']
             return urljoin(url, selected_source_url)
         except BaseException as e:
@@ -733,7 +767,8 @@ class Bot(Thread):
                 result = self.session.get(url, headers=self.headers, cookies=self.cookies, timeout=10)
                 if result.status_code != 200:
                     self.logger.warning(
-                        f"Could not fetch CMAF master playlist (HTTP {result.status_code}), falling back to master URL")
+                        f"Could not fetch CMAF master playlist (HTTP {result.status_code}), falling back to master URL"
+                    )
                     return url
                 master_text = result.text
 
@@ -757,14 +792,16 @@ class Bot(Thread):
             for playlist in master.playlists:
                 stream_info = playlist.stream_info
                 resolution = stream_info.resolution if type(stream_info.resolution) is tuple else (0, 0)
-                variants.append({
-                    'url': urljoin(url, playlist.uri),
-                    'resolution': resolution,
-                    'frame_rate': stream_info.frame_rate,
-                    'bandwidth': stream_info.bandwidth,
-                    'codecs': getattr(stream_info, 'codecs', None),
-                    'audio_group': getattr(stream_info, 'audio', None),
-                })
+                variants.append(
+                    {
+                        'url': urljoin(url, playlist.uri),
+                        'resolution': resolution,
+                        'frame_rate': stream_info.frame_rate,
+                        'bandwidth': stream_info.bandwidth,
+                        'codecs': getattr(stream_info, 'codecs', None),
+                        'audio_group': getattr(stream_info, 'audio', None),
+                    }
+                )
 
             if not variants:
                 self.logger.warning("CMAF master playlist has no variants, falling back to master URL")
@@ -779,20 +816,19 @@ class Bot(Thread):
                 if selected['frame_rate'] is not None and selected['frame_rate'] != 0:
                     frame_rate = f" {selected['frame_rate']}fps"
                 self.logger.info(
-                    f"Selected {selected['resolution'][0]}x{selected['resolution'][1]}{frame_rate} resolution (CMAF)")
+                    f"Selected {selected['resolution'][0]}x{selected['resolution'][1]}{frame_rate} resolution (CMAF)"
+                )
 
             audio_group = selected['audio_group']
             media = audio_media.get(audio_group) if audio_group else None
             if media is None:
-                self.logger.warning(
-                    "No matching audio group in CMAF master playlist, falling back to master URL")
+                self.logger.warning("No matching audio group in CMAF master playlist, falling back to master URL")
                 return url
 
             content = self._buildMasterPlaylist(master, selected, media)
             return self._writeMasterPlaylist(content)
         except Exception as e:
-            self.logger.warning(
-                f"Failed to build local CMAF master playlist ({e}), falling back to master URL")
+            self.logger.warning(f"Failed to build local CMAF master playlist ({e}), falling back to master URL")
             return url
 
     @staticmethod
@@ -890,9 +926,7 @@ class Bot(Thread):
     def str2site(site: str):
         site = site.lower()
         for sitecls in LOADED_SITES:
-            if site == sitecls.site.lower() or \
-                    site == sitecls.siteslug.lower() or \
-                    site in sitecls.aliases:
+            if site == sitecls.site.lower() or site == sitecls.siteslug.lower() or site in sitecls.aliases:
                 return sitecls
         return None
 
