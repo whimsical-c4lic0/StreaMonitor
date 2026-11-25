@@ -402,6 +402,7 @@ def test_backend_bootstraps_without_a_credential_file(monkeypatch, tmp_path):
     fake_ffmpeg = str(write_fake_ffmpeg(tmp_path / "ffmpeg"))
     monkeypatch.setattr(parameters, "FFMPEG_PATH", fake_ffmpeg)
     monkeypatch.setenv("STRMNTR_FFMPEG_PATH", fake_ffmpeg)
+
     def forbid_config_file(*args, **kwargs):
         pytest.fail("worker credentials must not be written to a temporary file")
 
@@ -552,7 +553,6 @@ def test_real_ffmpeg_decrypts_a_synthetic_cenc_file(monkeypatch, tmp_path, fragm
     assert not probe.stderr, probe.stderr.decode("utf-8", "replace")
     frames = [line for line in probe.stdout.splitlines() if line and not line.startswith(b"#")]
     assert len(frames) == 30
-
 
 
 @pytest.mark.parametrize("returncode", [0, 1])

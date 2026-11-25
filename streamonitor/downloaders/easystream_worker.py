@@ -853,7 +853,10 @@ class EasyStreamSession:
 
         wall = time.time()
         if self.expires_at:
-            if wall >= float(self.expires_at) - parameters.EASYSTREAM_TOKEN_REFRESH_MARGIN and not self.refresh_requested:
+            if (
+                wall >= float(self.expires_at) - parameters.EASYSTREAM_TOKEN_REFRESH_MARGIN
+                and not self.refresh_requested
+            ):
                 self._emit("refresh_needed", reason="expiring")
                 self.refresh_requested = True
             if wall >= float(self.expires_at):

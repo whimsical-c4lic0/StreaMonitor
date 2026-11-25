@@ -50,9 +50,7 @@ STREAM_ID_RE = re.compile(r"^[a-z0-9]{16}$")
 ALIAS_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 KID_RE = re.compile(r"^[0-9a-f]{32}$")
 ACCESS_RE = re.compile(r"^[a-z0-9_-]{0,64}$")
-BASE64_RE = re.compile(
-    r"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/][AQgw]==|[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=)?$"
-)
+BASE64_RE = re.compile(r"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/][AQgw]==|[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=)?$")
 
 ACCESS_VALUES = {"public", "private", "private_video", "private_audio"}
 MEDIA_VALUES = {"all", "audio", "none"}
@@ -268,7 +266,9 @@ def parse_viewer_token(payload: Any, *, now: float, allow_private_hosts: bool = 
     if expiry is None:
         expires_in = body.get("expiresIn")
         try:
-            lifetime = float(expires_in) if isinstance(expires_in, (int, float)) and not isinstance(expires_in, bool) else 0.0
+            lifetime = (
+                float(expires_in) if isinstance(expires_in, (int, float)) and not isinstance(expires_in, bool) else 0.0
+            )
         except OverflowError:
             lifetime = 0.0
         if math.isfinite(lifetime) and lifetime > 0 and math.isfinite(now + lifetime):
@@ -860,7 +860,9 @@ def _parse_traf(view: memoryview, traf: Box, timescales: dict[int, int]) -> Frag
     )
 
 
-def parse_fragment(data: bytes | bytearray | memoryview, timescales: dict[int, int] | None = None) -> list[FragmentInfo]:
+def parse_fragment(
+    data: bytes | bytearray | memoryview, timescales: dict[int, int] | None = None
+) -> list[FragmentInfo]:
     """Parse the ``traf`` records of a media fragment."""
     view = memoryview(data)
     top = boxes(view)

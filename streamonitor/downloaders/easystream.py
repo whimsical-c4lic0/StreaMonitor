@@ -140,7 +140,9 @@ def finalize_recording(source: str, filename: str, logger=None, suffix: str = ""
     segment_glob = os.path.join(
         glob.escape(folder),
         glob.escape(os.path.splitext(os.path.basename(filename))[0])
-        + "_" + "[0-9]" * 5 + glob.escape(suffix + "." + CONTAINER),
+        + "_"
+        + "[0-9]" * 5
+        + glob.escape(suffix + "." + CONTAINER),
     )
     if parameters.SEGMENT_TIME is not None:
         before = set(glob.glob(segment_glob))
@@ -178,7 +180,9 @@ def finalize_recording(source: str, filename: str, logger=None, suffix: str = ""
 
     if result.timed_out:
         if logger is not None:
-            logger.error(f"ffmpeg timed out after {parameters.FFMPEG_REMUX_TIMEOUT}s finalizing the EasyStream recording")
+            logger.error(
+                f"ffmpeg timed out after {parameters.FFMPEG_REMUX_TIMEOUT}s finalizing the EasyStream recording"
+            )
         return False
     if result.returncode != 0:
         if logger is not None:
@@ -307,7 +311,9 @@ class EasyStreamDownloader:
                     break
                 self.stream = stream
                 part += 1
-                delay = min(parameters.EASYSTREAM_RECONNECT_MAX, parameters.EASYSTREAM_RECONNECT_BASE * 2 ** (restarts - 1))
+                delay = min(
+                    parameters.EASYSTREAM_RECONNECT_MAX, parameters.EASYSTREAM_RECONNECT_BASE * 2 ** (restarts - 1)
+                )
                 delay *= 0.5 + random.random()
                 self._log("info", f"EasyStream reconnecting in {delay:.1f}s ({restart})")
                 if self._stopped.wait(delay):
@@ -541,11 +547,7 @@ class EasyStreamDownloader:
         if os.path.isfile(temp) and os.path.getsize(temp) > 0:
             return temp
         base = os.path.splitext(temp)[0]
-        candidates = [
-            path
-            for path in glob.glob(base + "*.mp4")
-            if os.path.isfile(path) and os.path.getsize(path) > 0
-        ]
+        candidates = [path for path in glob.glob(base + "*.mp4") if os.path.isfile(path) and os.path.getsize(path) > 0]
         if not candidates:
             return None
         return max(candidates, key=os.path.getmtime)

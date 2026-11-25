@@ -441,8 +441,14 @@ def test_downloader_reports_unavailable_backend(tmp_path, monkeypatch):
 def test_atv_routes_easystream_descriptors_to_the_websocket_downloader(monkeypatch):
     stream = make_stream()
     calls = []
-    monkeypatch.setattr("streamonitor.sites.amateurtv.getVideoEasyStream", lambda bot, source, name: calls.append(("easy", source, name)) or True)
-    monkeypatch.setattr("streamonitor.sites.amateurtv.getVideoFfmpeg", lambda bot, source, name: calls.append(("ffmpeg", source, name)) or True)
+    monkeypatch.setattr(
+        "streamonitor.sites.amateurtv.getVideoEasyStream",
+        lambda bot, source, name: calls.append(("easy", source, name)) or True,
+    )
+    monkeypatch.setattr(
+        "streamonitor.sites.amateurtv.getVideoFfmpeg",
+        lambda bot, source, name: calls.append(("ffmpeg", source, name)) or True,
+    )
     bot = object()
     assert getVideoAmateurTV(bot, stream, "out.mp4") is True
     assert getVideoAmateurTV(bot, "https://example/master.m3u8", "out.mp4") is True
@@ -560,9 +566,20 @@ def test_finalize_segments_keep_all_media_and_part_identity(tmp_path, monkeypatc
     source = tmp_path / "source.mp4"
     subprocess.run(
         [
-            ffmpeg, "-v", "error", "-f", "lavfi", "-i",
-            "testsrc2=size=160x120:rate=10", "-t", "6",
-            "-c:v", "mpeg4", "-g", "10", str(source),
+            ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=160x120:rate=10",
+            "-t",
+            "6",
+            "-c:v",
+            "mpeg4",
+            "-g",
+            "10",
+            str(source),
         ],
         check=True,
         capture_output=True,
@@ -660,8 +677,11 @@ def test_exited_worker_without_events_requests_reconnect(tmp_path):
 @pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan"), 10**400])
 def test_viewer_token_nonfinite_lifetime_uses_bounded_default(value):
     parsed = parse_viewer_token(
-        {"token": TOKEN, "expiresIn": value,
-         "edges": [{"url": "wss://edge.example/v1/viewer-connections", "weight": 1}]},
+        {
+            "token": TOKEN,
+            "expiresIn": value,
+            "edges": [{"url": "wss://edge.example/v1/viewer-connections", "weight": 1}],
+        },
         now=1000,
     )
     assert parsed.expires_at == 1900
@@ -670,8 +690,11 @@ def test_viewer_token_nonfinite_lifetime_uses_bounded_default(value):
 @pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan"), 10**400])
 def test_viewer_token_nonfinite_jwt_uses_lifetime(value):
     parsed = parse_viewer_token(
-        {"token": jwt_token(value), "expiresIn": 120,
-         "edges": [{"url": "wss://edge.example/v1/viewer-connections", "weight": 1}]},
+        {
+            "token": jwt_token(value),
+            "expiresIn": 120,
+            "edges": [{"url": "wss://edge.example/v1/viewer-connections", "weight": 1}],
+        },
         now=1000,
     )
     assert parsed.expires_at == 1120
@@ -682,10 +705,7 @@ def test_viewer_token_nonfinite_jwt_uses_lifetime(value):
 def test_fragment_composition_offsets_preserve_sample_alignment(version, composition, truncated):
     tfhd = box("tfhd", fullbox(0, 0, struct.pack(">I", 1)))
     tfdt = box("tfdt", fullbox(0, 0, struct.pack(">I", 90000)))
-    samples = b"".join(
-        struct.pack(">IIIi", 3000, 100, flags, composition)
-        for flags in (0, 0x10000)
-    )
+    samples = b"".join(struct.pack(">IIIi", 3000, 100, flags, composition) for flags in (0, 0x10000))
     if truncated:
         samples = samples[:-1]
     trun = box("trun", fullbox(version, 0xF00, struct.pack(">I", 2) + samples))

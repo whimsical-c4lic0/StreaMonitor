@@ -292,6 +292,7 @@ def encrypted_behaviour(*, deny: bool = False, send_after_license: bool = True):
                         )
                         continue
                     import base64
+
                     key = base64.urlsafe_b64encode(bytes.fromhex("000102030405060708090a0b0c0d0e0f")).rstrip(b"=")
                     encoded_kid = base64.urlsafe_b64encode(bytes.fromhex(message["kid"])).rstrip(b"=")
                     body = json.dumps(
@@ -342,7 +343,7 @@ def cenc_fragments(data: bytes) -> list[bytes]:
         return {item.type: item for item in boxes(data, parent.payload, parent.end)}
 
     def raw(item):
-        return data[item.start:item.end]
+        return data[item.start : item.end]
 
     def u32(offset):
         return struct.unpack_from(">I", data, offset)[0]
@@ -368,20 +369,22 @@ def cenc_fragments(data: bytes) -> list[bytes]:
     media_offset = u32(stbl["stco"].payload + 8)
     assert sum(sizes) == top["mdat"].end - media_offset
     sync = stbl.get("stss")
-    sync_samples = set(range(1, count + 1)) if sync is None else {
-        u32(sync.payload + 8 + i * 4) for i in range(u32(sync.payload + 4))
-    }
+    sync_samples = (
+        set(range(1, count + 1))
+        if sync is None
+        else {u32(sync.payload + 8 + i * 4) for i in range(u32(sync.payload + 4))}
+    )
     saiz = stbl["saiz"]
     default_aux_size = data[saiz.payload + 4]
     aux_sizes = [default_aux_size or data[saiz.payload + 9 + i] for i in range(count)]
     senc = stbl["senc"]
-    senc_header = data[senc.payload:senc.payload + 4]
+    senc_header = data[senc.payload : senc.payload + 4]
     aux_offset = senc.payload + 8
     auxiliary = []
     samples = []
     for size, aux_size in zip(sizes, aux_sizes):
-        samples.append(data[media_offset:media_offset + size])
-        auxiliary.append(data[aux_offset:aux_offset + aux_size])
+        samples.append(data[media_offset : media_offset + size])
+        auxiliary.append(data[aux_offset : aux_offset + aux_size])
         media_offset += size
         aux_offset += aux_size
     assert aux_offset == senc.end
@@ -405,8 +408,10 @@ def cenc_fragments(data: bytes) -> list[bytes]:
         end = min(start + 15, count)
         tfhd = box("tfhd", fullbox(0, 0x020000, struct.pack(">I", track_id)))
         tfdt = box("tfdt", fullbox(1, 0, struct.pack(">Q", decode_time)))
-        entries = b"".join(struct.pack(">III", durations[i], sizes[i], 0 if i + 1 in sync_samples else 0x10000)
-                           for i in range(start, end))
+        entries = b"".join(
+            struct.pack(">III", durations[i], sizes[i], 0 if i + 1 in sync_samples else 0x10000)
+            for i in range(start, end)
+        )
         fragment_senc = box("senc", senc_header + struct.pack(">I", end - start) + b"".join(auxiliary[start:end]))
         fragment_saiz = box("saiz", fullbox(0, 0, b"\0" + struct.pack(">I", end - start) + bytes(aux_sizes[start:end])))
         mfhd = box("mfhd", fullbox(0, 0, struct.pack(">I", sequence)))

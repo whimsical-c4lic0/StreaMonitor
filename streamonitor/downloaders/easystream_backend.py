@@ -90,8 +90,7 @@ class EasyStreamBackend:
     def start(self, stream, output: str, max_duration: int = 0) -> None:
         if not self.available():
             raise EasyStreamBackendUnavailable(
-                "EasyStream recorder is not available: install websockets and ffmpeg "
-                f"(python={self.python_path()})"
+                f"EasyStream recorder is not available: install websockets and ffmpeg (python={self.python_path()})"
             )
         credentials = stream.credentials
         self._secrets = {credentials.token}
