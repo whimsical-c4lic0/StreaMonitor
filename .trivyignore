@@ -1,0 +1,4 @@
+# Temporary, reviewed Trivy exceptions only.
+# Format: one CVE per line, preceded by a comment with owner, reason and expiry.
+# Example:
+# CVE-2026-00000  # owner:@maintainer expires:2026-12-31 replaced-by:upgrade
