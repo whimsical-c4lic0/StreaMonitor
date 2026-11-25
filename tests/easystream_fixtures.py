@@ -327,3 +327,100 @@ def encrypted_behaviour(*, deny: bool = False, send_after_license: bool = True):
 
 def public_handler(handler_fn):
     return handler_fn
+
+
+def cenc_fragments(data: bytes) -> list[bytes]:
+    """Repackage ffmpeg's single-track CENC file into init + media messages.
+
+    ffmpeg's fragmented encryption muxer produces unreadable files on some
+    builds. Preserve its real encrypted samples and per-sample IV/subsample
+    metadata instead, moving that metadata from stbl to each fragment's traf.
+    """
+    from streamonitor.downloaders.easystream_protocol import boxes
+
+    def children(parent):
+        return {item.type: item for item in boxes(data, parent.payload, parent.end)}
+
+    def raw(item):
+        return data[item.start:item.end]
+
+    def u32(offset):
+        return struct.unpack_from(">I", data, offset)[0]
+
+    top = {item.type: item for item in boxes(data)}
+    moov = children(top["moov"])
+    trak = children(moov["trak"])
+    mdia = children(trak["mdia"])
+    minf = children(mdia["minf"])
+    stbl = children(minf["stbl"])
+    stsz = stbl["stsz"]
+    count = u32(stsz.payload + 8)
+    fixed_size = u32(stsz.payload + 4)
+    sizes = [fixed_size or u32(stsz.payload + 12 + 4 * i) for i in range(count)]
+    durations = []
+    stts = stbl["stts"]
+    for i in range(u32(stts.payload + 4)):
+        offset = stts.payload + 8 + i * 8
+        durations.extend([u32(offset + 4)] * u32(offset))
+    assert len(durations) == count
+    # The synthetic video has one contiguous chunk and no B-frame offsets.
+    assert u32(stbl["stco"].payload + 4) == 1
+    media_offset = u32(stbl["stco"].payload + 8)
+    assert sum(sizes) == top["mdat"].end - media_offset
+    sync = stbl.get("stss")
+    sync_samples = set(range(1, count + 1)) if sync is None else {
+        u32(sync.payload + 8 + i * 4) for i in range(u32(sync.payload + 4))
+    }
+    saiz = stbl["saiz"]
+    default_aux_size = data[saiz.payload + 4]
+    aux_sizes = [default_aux_size or data[saiz.payload + 9 + i] for i in range(count)]
+    senc = stbl["senc"]
+    senc_header = data[senc.payload:senc.payload + 4]
+    aux_offset = senc.payload + 8
+    auxiliary = []
+    samples = []
+    for size, aux_size in zip(sizes, aux_sizes):
+        samples.append(data[media_offset:media_offset + size])
+        auxiliary.append(data[aux_offset:aux_offset + aux_size])
+        media_offset += size
+        aux_offset += aux_size
+    assert aux_offset == senc.end
+
+    empty_tables = b"".join(box(name, fullbox(0, 0, struct.pack(">I", 0))) for name in ("stts", "stsc", "stco"))
+    empty_tables += box("stsz", fullbox(0, 0, struct.pack(">II", 0, 0)))
+    init_stbl = box("stbl", raw(stbl["stsd"]) + empty_tables)
+
+    def replace(items, name, replacement):
+        return b"".join(replacement if key == name else raw(item) for key, item in items.items())
+
+    init_minf = box("minf", replace(minf, "stbl", init_stbl))
+    init_mdia = box("mdia", replace(mdia, "minf", init_minf))
+    init_trak = box("trak", replace(trak, "mdia", init_mdia))
+    track_id = u32(trak["tkhd"].payload + 12)
+    trex = box("trex", fullbox(0, 0, struct.pack(">IIIII", track_id, 1, 0, 0, 0)))
+    init_moov = box("moov", replace(moov, "trak", init_trak) + box("mvex", trex))
+    messages = [raw(top["ftyp"]) + init_moov]
+    decode_time = 0
+    for sequence, start in enumerate(range(0, count, 15), 1):
+        end = min(start + 15, count)
+        tfhd = box("tfhd", fullbox(0, 0x020000, struct.pack(">I", track_id)))
+        tfdt = box("tfdt", fullbox(1, 0, struct.pack(">Q", decode_time)))
+        entries = b"".join(struct.pack(">III", durations[i], sizes[i], 0 if i + 1 in sync_samples else 0x10000)
+                           for i in range(start, end))
+        fragment_senc = box("senc", senc_header + struct.pack(">I", end - start) + b"".join(auxiliary[start:end]))
+        fragment_saiz = box("saiz", fullbox(0, 0, b"\0" + struct.pack(">I", end - start) + bytes(aux_sizes[start:end])))
+        mfhd = box("mfhd", fullbox(0, 0, struct.pack(">I", sequence)))
+
+        def make_moof(data_offset, aux_offset):
+            trun = box("trun", fullbox(0, 0x701, struct.pack(">Ii", end - start, data_offset) + entries))
+            saio = box("saio", fullbox(0, 0, struct.pack(">II", 1, aux_offset)))
+            return box("moof", mfhd + box("traf", tfhd + tfdt + trun + fragment_senc + fragment_saiz + saio))
+
+        moof = make_moof(0, 0)
+        # senc IVs start after its box header, full-box flags and sample count.
+        aux_start = moof.index(b"senc") - 4 + 16
+        moof = make_moof(len(moof) + 8, aux_start)
+        messages.append(moof + box("mdat", b"".join(samples[start:end])))
+        decode_time += sum(durations[start:end])
+    assert len(messages) >= 3
+    return messages

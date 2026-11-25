@@ -6,9 +6,12 @@ import asyncio
 import base64
 import json
 import os
-import stat
+import shutil
 import subprocess
+import sys
+import tempfile
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,6 +24,7 @@ from tests.easystream_fixtures import (
     KID,
     STREAM_ID,
     EdgeServer,
+    cenc_fragments,
     clear_behaviour,
     encrypted_behaviour,
     fragment,
@@ -394,10 +398,14 @@ def test_renew_updates_the_token_in_place(monkeypatch):
     assert sent == [{"type": "token", "stream": STREAM_ID, "token": "NEW-TOKEN"}]
 
 
-def test_backend_uses_a_private_config_file_and_cleans_it_up(monkeypatch, tmp_path):
+def test_backend_bootstraps_without_a_credential_file(monkeypatch, tmp_path):
     fake_ffmpeg = str(write_fake_ffmpeg(tmp_path / "ffmpeg"))
     monkeypatch.setattr(parameters, "FFMPEG_PATH", fake_ffmpeg)
     monkeypatch.setenv("STRMNTR_FFMPEG_PATH", fake_ffmpeg)
+    def forbid_config_file(*args, **kwargs):
+        pytest.fail("worker credentials must not be written to a temporary file")
+
+    monkeypatch.setattr(tempfile, "mkstemp", forbid_config_file)
     seen: list[bool] = []
 
     async def handler(ws):
@@ -421,22 +429,23 @@ def test_backend_uses_a_private_config_file_and_cleans_it_up(monkeypatch, tmp_pa
         while not seen and time.time() < deadline:
             time.sleep(0.05)
         assert seen
-        config_path = backend._config_path
-        assert config_path is not None
-        assert stat.S_IMODE(os.stat(config_path).st_mode) == 0o600
+        assert "SECRET-VIEWER-TOKEN" not in " ".join(backend._process.args)
+        assert "--config" not in backend._process.args
+        # Closing the pipe models the EOF the worker sees if its monitor dies.
+        backend._process.stdin.close()
+        assert backend.wait(5) == 0
     finally:
         backend.close(5)
         server.close()
 
-    assert not os.path.exists(config_path)
+    assert backend.exited
 
 
-@pytest.mark.skipif(
-    not os.path.isfile("/tmp/opencode/ffmpeg-7.0.2-amd64-static/ffmpeg"),
-    reason="static ffmpeg with the encryption muxer is not available",
-)
-def test_real_ffmpeg_decrypts_a_synthetic_cenc_file(monkeypatch, tmp_path):
-    ffmpeg = "/tmp/opencode/ffmpeg-7.0.2-amd64-static/ffmpeg"
+@pytest.mark.parametrize("fragmented", [False, True], ids=["complete", "fragmented"])
+def test_real_ffmpeg_decrypts_a_synthetic_cenc_file(monkeypatch, tmp_path, fragmented):
+    ffmpeg = shutil.which(parameters.FFMPEG_PATH)
+    if ffmpeg is None:
+        pytest.skip("configured ffmpeg is not available")
     encrypted = tmp_path / "encrypted.mp4"
     generated = subprocess.run(
         [
@@ -467,6 +476,7 @@ def test_real_ffmpeg_decrypts_a_synthetic_cenc_file(monkeypatch, tmp_path):
             KEY,
             "-encryption_kid",
             KID,
+            *(["-an", "-bf", "0", "-g", "15"] if fragmented else []),
             str(encrypted),
         ],
         capture_output=True,
@@ -475,6 +485,7 @@ def test_real_ffmpeg_decrypts_a_synthetic_cenc_file(monkeypatch, tmp_path):
     if generated.returncode != 0:
         pytest.skip("this ffmpeg build cannot write encrypted MP4")
     data = encrypted.read_bytes()
+    messages = cenc_fragments(data) if fragmented else [data]
     received: list[dict] = []
 
     async def handler(ws):
@@ -499,7 +510,7 @@ def test_real_ffmpeg_decrypts_a_synthetic_cenc_file(monkeypatch, tmp_path):
                 )
                 await send_json(ws, {"type": "access", "stream": STREAM_ID, "access": "public", "media": "all"})
             elif kind == "want":
-                await ws.send(data)
+                await ws.send(messages[0])
             elif kind == "license":
                 encoded_key = base64.urlsafe_b64encode(bytes.fromhex(KEY)).rstrip(b"=").decode("ascii")
                 encoded_kid = base64.urlsafe_b64encode(bytes.fromhex(message["kid"])).rstrip(b"=").decode("ascii")
@@ -513,23 +524,64 @@ def test_real_ffmpeg_decrypts_a_synthetic_cenc_file(monkeypatch, tmp_path):
                         "payload": base64.b64encode(body.encode()).decode(),
                     },
                 )
+                for media in messages[1:]:
+                    await ws.send(media)
+                    await asyncio.sleep(0.02)
                 await send_json(ws, {"type": "end", "stream": STREAM_ID})
 
     server = EdgeServer(handler).start()
     monkeypatch.setattr(parameters, "FFMPEG_PATH", ffmpeg)
     try:
-        _, events = run_session(make_config(tmp_path / "decrypted.mp4", server.url()), monkeypatch)
+        session, events = run_session(make_config(tmp_path / "decrypted.mp4", server.url()), monkeypatch)
     finally:
         server.close()
 
+    assert session.ffmpeg_exit == 0
+    if fragmented:
+        assert session.init_info.has_media is False
+        assert session.media_fragments >= 2
     output = tmp_path / "decrypted.mp4"
     assert output.stat().st_size > 0
     assert by_event(events, "stopped")[-1]["reason"] == "ended"
     probe = subprocess.run(
-        [ffmpeg, "-v", "error", "-i", str(output), "-f", "null", "-"],
+        [ffmpeg, "-v", "error", "-xerror", "-i", str(output), "-map", "0:v:0", "-f", "framehash", "-"],
         capture_output=True,
         timeout=60,
     )
     assert probe.returncode == 0, probe.stderr.decode("utf-8", "replace")
-    assert b"Invalid data" not in probe.stderr
+    assert not probe.stderr, probe.stderr.decode("utf-8", "replace")
+    frames = [line for line in probe.stdout.splitlines() if line and not line.startswith(b"#")]
+    assert len(frames) == 30
 
+
+
+@pytest.mark.parametrize("returncode", [0, 1])
+def test_backend_probes_configured_python(monkeypatch, returncode):
+    calls = []
+    monkeypatch.setattr(parameters, "EASYSTREAM_PYTHON", "/custom/python")
+    monkeypatch.setattr(EasyStreamBackend, "ffmpeg_available", lambda: True)
+
+    def probe(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(returncode=returncode)
+
+    monkeypatch.setattr(subprocess, "run", probe)
+    assert EasyStreamBackend.available() is (returncode == 0)
+    command, kwargs = calls[0]
+    assert command[0] == "/custom/python"
+    assert "easystream_worker" in command[2]
+    assert kwargs["timeout"] == 10
+    assert kwargs["cwd"] == EasyStreamBackend.project_root()
+    assert kwargs["env"]["PYTHONPATH"].startswith(EasyStreamBackend.project_root())
+
+
+def test_backend_rejects_python_without_worker_dependencies(monkeypatch, tmp_path):
+    import venv
+
+    venv.EnvBuilder(with_pip=False).create(tmp_path / "isolated")
+    python = tmp_path / "isolated" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    monkeypatch.setattr(parameters, "EASYSTREAM_PYTHON", str(python))
+    monkeypatch.setattr(EasyStreamBackend, "ffmpeg_available", lambda: True)
+    assert not EasyStreamBackend.available()
+    monkeypatch.setattr(parameters, "EASYSTREAM_PYTHON", sys.executable)
+    assert EasyStreamBackend.available()

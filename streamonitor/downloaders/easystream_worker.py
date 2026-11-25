@@ -12,7 +12,6 @@ stdout as JSON lines.  Media never crosses the JSON channel.
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import json
 import os
@@ -905,12 +904,10 @@ class EasyStreamSession:
         )
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="EasyStream recorder worker")
-    parser.add_argument("--config", required=True)
-    args = parser.parse_args(argv)
-    with open(args.config, encoding="utf-8") as config_file:
-        config = json.load(config_file)
+def main() -> int:
+    # Bootstrap on the same private pipe used for subsequent commands. No
+    # credential file can survive a killed monitor, even before subscription.
+    config = json.loads(sys.stdin.readline())
     session = EasyStreamSession(config)
 
     async def run():

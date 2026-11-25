@@ -6,9 +6,11 @@ import base64
 import json
 import logging
 import shutil
+import struct
 import subprocess
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -37,7 +39,7 @@ from streamonitor.downloaders.easystream_protocol import (
 )
 from streamonitor.enums import Status
 from streamonitor.sites.amateurtv import AmateurTV, getVideoAmateurTV
-from tests.easystream_fixtures import KID, STREAM_ID, fragment, init_segment, write_fake_ffmpeg
+from tests.easystream_fixtures import KID, STREAM_ID, box, fragment, fullbox, init_segment, write_fake_ffmpeg
 
 TOKEN = "viewer.token.signature"
 
@@ -653,3 +655,88 @@ def test_exited_worker_without_events_requests_reconnect(tmp_path):
 
     assert downloader._record_part(stream, str(tmp_path / "user.mp4")) == (False, "process_exit")
     assert backend.closed
+
+
+@pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan"), 10**400])
+def test_viewer_token_nonfinite_lifetime_uses_bounded_default(value):
+    parsed = parse_viewer_token(
+        {"token": TOKEN, "expiresIn": value,
+         "edges": [{"url": "wss://edge.example/v1/viewer-connections", "weight": 1}]},
+        now=1000,
+    )
+    assert parsed.expires_at == 1900
+
+
+@pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan"), 10**400])
+def test_viewer_token_nonfinite_jwt_uses_lifetime(value):
+    parsed = parse_viewer_token(
+        {"token": jwt_token(value), "expiresIn": 120,
+         "edges": [{"url": "wss://edge.example/v1/viewer-connections", "weight": 1}]},
+        now=1000,
+    )
+    assert parsed.expires_at == 1120
+
+
+@pytest.mark.parametrize("version,composition", [(0, 6000), (1, -3000)])
+@pytest.mark.parametrize("truncated", [False, True])
+def test_fragment_composition_offsets_preserve_sample_alignment(version, composition, truncated):
+    tfhd = box("tfhd", fullbox(0, 0, struct.pack(">I", 1)))
+    tfdt = box("tfdt", fullbox(0, 0, struct.pack(">I", 90000)))
+    samples = b"".join(
+        struct.pack(">IIIi", 3000, 100, flags, composition)
+        for flags in (0, 0x10000)
+    )
+    if truncated:
+        samples = samples[:-1]
+    trun = box("trun", fullbox(version, 0xF00, struct.pack(">I", 2) + samples))
+    data = box("moof", box("traf", tfhd + tfdt + trun)) + box("mdat", b"x" * 200)
+    if truncated:
+        with pytest.raises(EasyStreamProtocolError):
+            parse_fragment(data, {1: 90000})
+    else:
+        result = parse_fragment(data, {1: 90000})[0]
+        assert result.start_s == 1
+        assert result.end_s == pytest.approx(1 + 6000 / 90000)
+        assert result.keyframe is True
+
+
+def test_finalize_segments_ignores_other_recordings(tmp_path, monkeypatch):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x" * 4096)
+    monkeypatch.setattr(parameters, "SEGMENT_TIME", 10)
+    monkeypatch.setattr(easystream, "CONTAINER", "mp4")
+
+    def remux(*args, **kwargs):
+        (tmp_path / "other_00000.mp4").write_bytes(b"x" * 4096)
+        return SimpleNamespace(returncode=0, timed_out=False, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(easystream, "run_bounded", remux)
+    assert not finalize_recording(str(source), str(tmp_path / "show.mp4"))
+    assert source.exists()
+
+
+@pytest.mark.parametrize("reason", ["ended", "max_duration"])
+def test_normal_recording_end_is_not_an_error(tmp_path, monkeypatch, caplog, reason):
+    patch_finalize(monkeypatch)
+    backend = FakeBackend([{"event": "stopped", "reason": reason}])
+    downloader = EasyStreamDownloader(FakeBot(), make_stream(), backend=backend)
+    with caplog.at_level(logging.INFO, logger="test-easystream"):
+        assert downloader.record(str(tmp_path / "show.mp4"))
+    assert f"EasyStream recording ended: {reason}" in caplog.text
+    assert not any(record.levelno >= logging.ERROR for record in caplog.records)
+
+
+@pytest.mark.parametrize("name,suffix", [("show", "_extra"), ("show[1]", "_[extra]")])
+def test_finalize_segments_match_literal_recording_identity(tmp_path, monkeypatch, name, suffix):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x" * 4096)
+    monkeypatch.setattr(parameters, "SEGMENT_TIME", 10)
+    monkeypatch.setattr(easystream, "CONTAINER", "mp4")
+
+    def remux(*args, **kwargs):
+        (tmp_path / f"{name}_00000{suffix}.mp4").write_bytes(b"x" * 4096)
+        return SimpleNamespace(returncode=0, timed_out=False, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(easystream, "run_bounded", remux)
+    assert finalize_recording(str(source), str(tmp_path / f"{name}.mp4"), suffix=suffix)
+    assert not source.exists()

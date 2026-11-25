@@ -1,26 +1,22 @@
 """Subprocess backend for the EasyStream WebSocket recorder worker.
 
 The worker owns the WebSocket and ffmpeg; this module only knows about the
-process, its private configuration file and the JSON-lines command/event
+process, its private stdin pipe and the JSON-lines command/event
 protocol.  Keeping the socket stack out of process isolates a crashed decoder
 or a hung TLS connection from the monitor thread.
 """
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import queue
 import shutil
 import subprocess
-import tempfile
 import threading
 from collections import deque
 
 import parameters
-
-_REQUIRED_MODULES = ("websockets",)
 
 
 class EasyStreamBackendUnavailable(RuntimeError):
@@ -41,7 +37,6 @@ class EasyStreamBackend:
         self._stderr_thread: threading.Thread | None = None
         self._lock = threading.Lock()
         self._secrets: set[str] = set()
-        self._config_path: str | None = None
         self.reported_file: str | None = None
         self.media: dict | None = None
         self.exit_code: int | None = None
@@ -59,13 +54,28 @@ class EasyStreamBackend:
 
     @classmethod
     def available(cls) -> bool:
-        if any(importlib.util.find_spec(name) is None for name in _REQUIRED_MODULES):
+        if not cls.ffmpeg_available() or not os.path.isfile(cls.worker_path()):
             return False
-        if not cls.ffmpeg_available():
+        try:
+            # Import the actual worker, including its dependencies, using the
+            # interpreter that will run it (not the monitor's interpreter).
+            result = subprocess.run(
+                [cls.python_path(), "-c", "import streamonitor.downloaders.easystream_worker"],
+                cwd=cls.project_root(),
+                env=cls.worker_env(),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired):
             return False
-        return os.path.isfile(cls.worker_path()) and (
-            shutil.which(cls.python_path()) is not None or os.path.isfile(cls.python_path())
-        )
+        return result.returncode == 0
+
+    @classmethod
+    def worker_env(cls) -> dict[str, str]:
+        env = os.environ.copy()
+        env["PYTHONPATH"] = cls.project_root() + os.pathsep + env.get("PYTHONPATH", "")
+        return env
 
     @staticmethod
     def worker_path() -> str:
@@ -103,24 +113,10 @@ class EasyStreamBackend:
             "maxDurationSec": max(0, int(max_duration or 0)),
         }
 
-        fd, self._config_path = tempfile.mkstemp(prefix=".easystream-", suffix=".json")
-        try:
-            os.fchmod(fd, 0o600)
-            with os.fdopen(fd, "w") as config_file:
-                json.dump(config, config_file)
-        except BaseException:
-            self._delete_config()
-            raise
-
-        root = self.project_root()
-        env = os.environ.copy()
-        env["PYTHONPATH"] = root + os.pathsep + env.get("PYTHONPATH", "")
         cmd = [
             self.python_path(),
             "-m",
             "streamonitor.downloaders.easystream_worker",
-            "--config",
-            self._config_path,
         ]
         try:
             self._process = subprocess.Popen(
@@ -130,25 +126,22 @@ class EasyStreamBackend:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                cwd=root,
-                env=env,
+                cwd=self.project_root(),
+                env=self.worker_env(),
             )
         except OSError as error:
-            self._delete_config()
             raise EasyStreamBackendUnavailable(f"failed to start EasyStream worker: {error}") from error
 
         self._stdout_thread = threading.Thread(target=self._read_stdout, name="easystream-worker-events", daemon=True)
         self._stdout_thread.start()
         self._stderr_thread = threading.Thread(target=self._read_stderr, name="easystream-worker-stderr", daemon=True)
         self._stderr_thread.start()
-
-    def _delete_config(self) -> None:
-        path, self._config_path = self._config_path, None
-        if path:
-            try:
-                os.unlink(path)
-            except OSError:
-                pass
+        try:
+            self._process.stdin.write(json.dumps(config) + "\n")
+            self._process.stdin.flush()
+        except (OSError, ValueError) as error:
+            self.close(1)
+            raise EasyStreamBackendUnavailable("failed to send EasyStream worker configuration") from error
 
     def _read_stdout(self) -> None:
         process = self._process
@@ -170,12 +163,9 @@ class EasyStreamBackend:
                 self.reported_file = event["file"]
             if event["event"] == "media":
                 self.media = event
-            if event["event"] in ("subscribed", "media", "stopped", "error"):
-                self._delete_config()
             self._events.put(event)
         code = process.wait()
         self.exit_code = code
-        self._delete_config()
         self._events.put({"event": "process_exit", "code": code})
 
     def _read_stderr(self) -> None:
@@ -280,7 +270,6 @@ class EasyStreamBackend:
         for thread in (self._stdout_thread, self._stderr_thread):
             if thread is not None and thread.is_alive():
                 thread.join(timeout=2)
-        self._delete_config()
         return code
 
     def stderr_tail(self) -> str:

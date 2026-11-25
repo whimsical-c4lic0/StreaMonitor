@@ -137,8 +137,13 @@ def finalize_recording(source: str, filename: str, logger=None, suffix: str = ""
     cmd = [FFMPEG_PATH, "-y", "-i", source, "-c", "copy"]
 
     before: set[str] = set()
+    segment_glob = os.path.join(
+        glob.escape(folder),
+        glob.escape(os.path.splitext(os.path.basename(filename))[0])
+        + "_" + "[0-9]" * 5 + glob.escape(suffix + "." + CONTAINER),
+    )
     if parameters.SEGMENT_TIME is not None:
-        before = set(glob.glob(os.path.join(folder, f"*{suffix}.{CONTAINER}")))
+        before = set(glob.glob(segment_glob))
         cmd.extend(
             [
                 "-f",
@@ -183,7 +188,7 @@ def finalize_recording(source: str, filename: str, logger=None, suffix: str = ""
     if output_path is not None:
         produced = [output_path] if os.path.isfile(output_path) else []
     else:
-        after = set(glob.glob(os.path.join(folder, f"*{suffix}.{CONTAINER}")))
+        after = set(glob.glob(segment_glob))
         produced = [path for path in after - before if os.path.isfile(path)]
     produced = [path for path in produced if os.path.getsize(path) >= _MIN_PLAYABLE_SIZE]
     if not produced:
@@ -287,7 +292,8 @@ class EasyStreamDownloader:
                 if restart is None:
                     break
                 if restart not in _RESTART_REASONS or restart in _TERMINAL_REASONS:
-                    self._log("error", f"EasyStream recording ended: {restart}")
+                    level = "info" if restart in ("ended", "max_duration") else "error"
+                    self._log(level, f"EasyStream recording ended: {restart}")
                     break
                 restarts += 1
                 if restarts > parameters.EASYSTREAM_MAX_RECONNECTS:

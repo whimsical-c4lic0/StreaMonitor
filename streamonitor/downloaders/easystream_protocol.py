@@ -187,7 +187,11 @@ def jwt_expiry(token: str) -> float | None:
     exp = payload.get("exp")
     if isinstance(exp, bool) or not isinstance(exp, (int, float)) or exp <= 0:
         return None
-    return float(exp)
+    try:
+        expiry = float(exp)
+    except OverflowError:
+        return None
+    return expiry if math.isfinite(expiry) else None
 
 
 def _private_host(host: str) -> bool:
@@ -263,8 +267,12 @@ def parse_viewer_token(payload: Any, *, now: float, allow_private_hosts: bool = 
     expiry = jwt_expiry(token)
     if expiry is None:
         expires_in = body.get("expiresIn")
-        if isinstance(expires_in, (int, float)) and not isinstance(expires_in, bool) and expires_in > 0:
-            expiry = now + float(expires_in)
+        try:
+            lifetime = float(expires_in) if isinstance(expires_in, (int, float)) and not isinstance(expires_in, bool) else 0.0
+        except OverflowError:
+            lifetime = 0.0
+        if math.isfinite(lifetime) and lifetime > 0 and math.isfinite(now + lifetime):
+            expiry = now + lifetime
         else:
             # The frontend's token lifetime was 900s.  A conservative default
             # keeps renewal bounded when the response omits both fields.
@@ -814,6 +822,8 @@ def _parse_traf(view: memoryview, traf: Box, timescales: dict[int, int]) -> Frag
         per_sample += 4
     if trun_flags & 0x400:
         per_sample += 4
+    if trun_flags & 0x800:
+        per_sample += 4
     _need(trun.end, cursor, sample_count * per_sample)
     total_duration = 0
     for index in range(sample_count):
@@ -827,6 +837,10 @@ def _parse_traf(view: memoryview, traf: Box, timescales: dict[int, int]) -> Frag
         if trun_flags & 0x400:
             if index == 0 and first_flags is None:
                 first_flags = _u32(view, cursor, trun.end)
+            cursor += 4
+        if trun_flags & 0x800:
+            # Both unsigned (v0) and signed (v1) composition offsets occupy
+            # four bytes. Decode-time duration does not include this offset.
             cursor += 4
     if first_flags is None:
         first_flags = default_flags if default_flags is not None else 0
