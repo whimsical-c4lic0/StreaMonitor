@@ -7,10 +7,15 @@ Each test:
 
 1. discovers a currently live model for its site,
 2. creates the real bot and confirms its status is `PUBLIC`,
-3. asks the bot for its recording URL and records for a few seconds,
+3. asks the bot for its recording URL and records for a few seconds (a
+   recording that fails mid-stream is retried once with a fresh URL, because
+   live CDNs occasionally drop a segment or rotate a host),
 4. stops the downloader through `stopDownload()`,
 5. verifies the recorded file with `ffprobe` (one video stream and one audio
    stream) and decodes a few frames from each stream with `ffmpeg`.
+
+Each run enables `STRMNTR_DEBUG` so ffmpeg's stderr is written next to the
+recording; a failed attempt includes its tail in the assertion.
 
 ## Requirements
 
@@ -71,4 +76,5 @@ test harness). They are skipped with a reason unless a model is pinned through
 
 A site is also skipped when it is unreachable, when its discovery endpoint
 returns no live candidates, or when no candidate reports `PUBLIC` during the
-test run. Recording or media-verification failures are test failures.
+test run. A recording failure is retried once with a fresh stream URL; only a
+second failure, or a problem with the recorded media, fails the test.

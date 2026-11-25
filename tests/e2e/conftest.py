@@ -64,6 +64,11 @@ if FFMPEG and not os.environ.get("STRMNTR_FFMPEG_PATH"):
 # startup room than the HLS sites in the opt-in tests.
 os.environ.setdefault("STRMNTR_AGORA_JOIN_TIMEOUT", "90")
 
+# Keep ffmpeg's stderr next to each recording.  The downloader only writes it
+# in debug mode, and a live failure is otherwise reduced to an exit code in
+# the assertion.  The e2e run is opt-in and already verbose.
+os.environ.setdefault("STRMNTR_DEBUG", "1")
+
 
 def e2e_enabled() -> bool:
     return os.environ.get("STRMNTR_E2E") == "1"

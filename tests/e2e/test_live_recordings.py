@@ -6,7 +6,9 @@ Run with::
 
 The tests are intentionally skipped during a normal ``pytest`` run: they visit
 live adult streaming sites and download a short sample for every reachable
-site.
+site.  A recording that fails mid-stream is retried once with a fresh stream
+URL: live HLS CDNs occasionally drop a segment or rotate a host, which makes
+ffmpeg exit non-zero even though the recorder itself is fine.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from __future__ import annotations
 import os
 import subprocess
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from threading import Thread
 
@@ -79,6 +82,13 @@ def _selected_site_classes():
 SITE_CLASSES = _selected_site_classes()
 
 _MEDIA_SUFFIXES = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".wmv", ".ts"}
+
+# Live HLS CDNs occasionally drop a segment or rotate a host mid-recording, so
+# ffmpeg exits non-zero even though the recorder is fine.  The production bot
+# restarts such a recording; the test does the same instead of failing the run
+# on one transient CDN error.  A real code defect fails both attempts.
+RECORD_ATTEMPTS = 2
+RECORD_RETRY_DELAY = 2.0
 
 
 def _media_files(folder: Path) -> list[Path]:
@@ -169,8 +179,54 @@ def _stop_download(bot, thread: Thread, timeout: float = 90.0) -> bool:
     return not thread.is_alive()
 
 
-def _record(bot, url, output_file: Path, seconds: int) -> str | None:
-    """Record for ``seconds`` and return an error string, if any."""
+def _all_files(folder: Path) -> set[Path]:
+    """Snapshot every file in ``folder`` before one recording attempt."""
+    if not folder.is_dir():
+        return set()
+    return {path for path in folder.rglob("*") if path.is_file()}
+
+
+def _new_media(folder: Path, baseline: set[Path]) -> list[Path]:
+    """Media files created after ``baseline`` was taken."""
+    return [path for path in _media_files(folder) if path not in baseline]
+
+
+def _new_active_media(folder: Path, baseline: set[Path]) -> list[Path]:
+    """Non-empty media files created after ``baseline`` was taken."""
+    return [path for path in _active_media(folder) if path not in baseline]
+
+
+def _stderr_excerpt(folder: Path, baseline: set[Path], limit: int = 2000) -> str:
+    """Tail of the ffmpeg stderr logs written by one recording attempt.
+
+    The downloader only keeps stderr next to the recording in debug mode; the
+    e2e conftest enables it so a failure is not reported as a bare exit code.
+    """
+    logs = [path for path in _all_files(folder) if path not in baseline and path.name.endswith("stderr.log")]
+    excerpts = []
+    for path in sorted(logs):
+        text = path.read_text(errors="replace").strip()
+        if text:
+            excerpts.append(f"--- {path.name} ---\n{text[-limit:]}")
+    if not excerpts:
+        return ""
+    return "\nffmpeg stderr:\n" + "\n".join(excerpts)
+
+
+@dataclass(frozen=True)
+class _RecordFailure:
+    """Why one recording attempt failed, and whether a retry can help."""
+
+    message: str
+    retryable: bool = True
+
+
+def _record(bot, url, output_file: Path, seconds: int, baseline: set[Path]) -> _RecordFailure | None:
+    """Record for ``seconds`` and return a failure, if any.
+
+    ``baseline`` is the output-folder snapshot taken before this attempt, so
+    files left by an earlier failed attempt do not count as progress.
+    """
     result: dict[str, object] = {}
 
     def run():
@@ -186,7 +242,7 @@ def _record(bot, url, output_file: Path, seconds: int) -> str | None:
     deadline = time.monotonic() + (120 if isinstance(url, AgoraStream) else min(60, max(25, seconds * 2)))
     first_data_at = None
     while time.monotonic() < deadline:
-        if _active_media(folder):
+        if _new_active_media(folder, baseline):
             first_data_at = time.monotonic()
             break
         if not thread.is_alive():
@@ -204,14 +260,31 @@ def _record(bot, url, output_file: Path, seconds: int) -> str | None:
 
     stopped = _stop_download(bot, thread)
     if not stopped:
-        return "downloader did not stop after stopDownload()"
+        # The downloader ignored stopDownload(), which points at the recorder
+        # rather than the CDN; a retry would only hang the same way again.
+        return _RecordFailure("downloader did not stop after stopDownload()", retryable=False)
 
     error = result.get("error")
     if error is not None:
-        return f"downloader raised {type(error).__name__}: {error}"
+        return _RecordFailure(f"downloader raised {type(error).__name__}: {error}" + _stderr_excerpt(folder, baseline))
     if result.get("value") is False:
-        return "getVideo() returned False"
+        return _RecordFailure("getVideo() returned False" + _stderr_excerpt(folder, baseline))
     return None
+
+
+def _refresh_stream_url(bot, fallback):
+    """Ask the site for a fresh stream URL after a failed live attempt.
+
+    Signed stream URLs and CDN sessions can expire, so a retry should not
+    reuse the URL that just failed.  If the site cannot provide another one,
+    keep the old URL rather than turning the retry into a different failure.
+    """
+    try:
+        bot.getStatus()
+        refreshed = bot.getVideoUrl()
+    except Exception:  # noqa: BLE001 - retrying with the old URL is still useful
+        return fallback
+    return refreshed or fallback
 
 
 def _probe_and_decode(path: Path, ffprobe: str, ffmpeg: str) -> dict:
@@ -314,16 +387,40 @@ def test_live_site_records_video_and_audio(
     if isinstance(url, AgoraStream) and not AgoraWebRTCBackend.available():
         pytest.skip("the Agora WebRTC recorder dependencies are missing; run `uv sync` (or use the Docker image)")
 
-    output_file = Path(bot.genOutFilename())
     folder = Path(bot.outputFolder)
-    print(f"\n[e2e] {site_cls.siteslug}/{bot.username}: recording {url!s} for ~{record_seconds}s into {folder}")
+    failures: list[str] = []
+    media: list[Path] = []
+    baseline: set[Path] = set()
+    failure: _RecordFailure | None = None
+    for attempt in range(1, RECORD_ATTEMPTS + 1):
+        if attempt > 1:
+            time.sleep(RECORD_RETRY_DELAY)
+            url = _refresh_stream_url(bot, url)
+        baseline = _all_files(folder)
+        output_file = Path(bot.genOutFilename())
+        print(
+            f"\n[e2e] {site_cls.siteslug}/{bot.username}: "
+            f"attempt {attempt}/{RECORD_ATTEMPTS}: recording {url!s} for ~{record_seconds}s into {folder}"
+        )
+        failure = _record(bot, url, output_file, record_seconds, baseline)
+        media = _new_media(folder, baseline)
+        if failure is None:
+            break
+        failures.append(f"attempt {attempt}: {failure.message}")
+        if not failure.retryable or attempt == RECORD_ATTEMPTS:
+            break
+        print(f"[e2e] {site_cls.siteslug}/{bot.username}: {failure.message}; retrying with a fresh stream URL")
 
-    error = _record(bot, url, output_file, record_seconds)
-    media = _media_files(folder)
-    if error:
-        raise AssertionError(f"{site_cls.siteslug}/{bot.username}: {error}; files={media}")
+    if failure is not None:
+        raise AssertionError(
+            f"{site_cls.siteslug}/{bot.username}: recording failed after "
+            f"{len(failures)} attempt(s): " + "; ".join(failures) + f"; files={_media_files(folder)}"
+        )
     if not media:
-        raise AssertionError(f"{site_cls.siteslug}/{bot.username}: recording produced no media files in {folder}")
+        raise AssertionError(
+            f"{site_cls.siteslug}/{bot.username}: recording produced no media files in {folder}"
+            + _stderr_excerpt(folder, baseline)
+        )
 
     # The largest file is the completed recording (native-HLS and websocket
     # downloaders leave intermediate files behind only on failure).
