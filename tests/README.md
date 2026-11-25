@@ -40,8 +40,21 @@ uv sync --frozen
 STRMNTR_E2E=1 uv run pytest tests/e2e -v
 ```
 
+To run several sites at once, set `STRMNTR_E2E_WORKERS` (uses
+[pytest-xdist](https://pytest-xdist.readthedocs.io/)):
+
+```bash
+STRMNTR_E2E=1 STRMNTR_E2E_WORKERS=3 uv run pytest tests/e2e -v
+```
+
+Each worker is a separate process with its own temporary downloads directory,
+so sites do not share recordings. `3` keeps a typical laptop or CI runner busy
+without saturating the connection or the CPU; the default is `1` (sequential).
+
 Useful environment variables:
 
+- `STRMNTR_E2E_WORKERS` – number of sites to record at once (default `1`,
+  sequential), for example `3`.
 - `STRMNTR_E2E_SITES` – comma-separated site slugs to run, for example
   `CB,SC,SCVR`.
 - `STRMNTR_E2E_RECORD_SECONDS` – recording duration per site (default `20`,
