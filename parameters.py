@@ -21,6 +21,11 @@ def _project_path(value):
 
 DOWNLOADS_DIR = str(_project_path(env.str("STRMNTR_DOWNLOAD_DIR", "downloads")))
 CONFIG_FILE = str(_project_path(env.str("STRMNTR_CONFIG", "config.json")))
+
+# StripChat mouflon decryption key cache. Override with STRMNTR_MOUFLON_KEYS
+# to point at a different filename or absolute path.
+MOUFLON_KEYS_FILE = str(_project_path(env.str("STRMNTR_MOUFLON_KEYS", "stripchat_mouflon_keys.json")))
+
 MIN_FREE_DISK_PERCENT = env.float("STRMNTR_MIN_FREE_SPACE", 5.0)  # in %
 DEBUG = env.bool("STRMNTR_DEBUG", False)
 

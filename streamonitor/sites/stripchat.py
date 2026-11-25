@@ -7,7 +7,7 @@ import random
 
 import requests
 
-from parameters import PROJECT_ROOT
+from parameters import MOUFLON_KEYS_FILE
 from streamonitor.bot import RoomIdBot
 from streamonitor.downloaders.hls import getVideoNativeHLS
 from streamonitor.enums import COUNTRIES, Gender, Status
@@ -19,7 +19,7 @@ class StripChat(RoomIdBot):
 
     bulk_update = True
     _static_data = None
-    _mouflon_cache_filename = str(PROJECT_ROOT / 'stripchat_mouflon_keys.json')
+    _mouflon_cache_filename = MOUFLON_KEYS_FILE
     _mouflon_keys: dict = None
     _cached_keys: dict[str, bytes] = None
     _user_id_cache: dict[str, str] = {}
