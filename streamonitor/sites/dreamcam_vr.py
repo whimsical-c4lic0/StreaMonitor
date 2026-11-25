@@ -1,7 +1,6 @@
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 from parameters import VR_FORMAT_SUFFIX
-
 from streamonitor.downloaders.fmp4s_wss import getVideoWSSVR
 from streamonitor.sites.dreamcam import DreamCam
 

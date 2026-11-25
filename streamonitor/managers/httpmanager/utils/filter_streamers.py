@@ -1,4 +1,4 @@
-from typing import List, cast, Union
+from typing import List, Union, cast
 
 from streamonitor.bot import Bot
 from streamonitor.enums import Status

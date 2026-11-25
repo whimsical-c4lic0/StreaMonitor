@@ -2,11 +2,12 @@ import json
 import sys
 import time
 
+from parameters import CONFIG_FILE
 from streamonitor.bot import Bot
 from streamonitor.log import Logger
 
 logger = Logger('[CONFIG]').get_logger()
-config_loc = "config.json"
+config_loc = CONFIG_FILE
 
 
 def load_config():

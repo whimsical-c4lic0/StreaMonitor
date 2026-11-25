@@ -19,6 +19,7 @@ from threading import Thread
 
 import pytest
 from curl_cffi import requests as curl_requests
+from discovery import DiscoveryError, LiveCandidate, discover
 
 from streamonitor.bot import RoomIdBot
 from streamonitor.downloaders.agora import AgoraStream
@@ -43,8 +44,6 @@ from streamonitor.sites import (
     StripChatVR,
     XLoveCam,
 )
-
-from discovery import DiscoveryError, LiveCandidate, discover
 
 pytestmark = pytest.mark.e2e
 

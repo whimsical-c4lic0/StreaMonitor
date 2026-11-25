@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 import streamonitor.log as log
 from parameters import WEB_STATUS_FREQUENCY, WEB_THEATER_MODE
-from .confirm_deletes import confirm_deletes
 from streamonitor.models.video_data import VideoData
+
+from .confirm_deletes import confirm_deletes
 
 if TYPE_CHECKING:
     from streamonitor.bot import Bot

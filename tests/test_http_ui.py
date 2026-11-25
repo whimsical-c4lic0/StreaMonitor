@@ -5,9 +5,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
 from bs4 import BeautifulSoup
 from flask import Flask
-import pytest
 
 from streamonitor.enums import Status
 from streamonitor.manager import Manager
@@ -48,7 +48,9 @@ def make_test_app(monkeypatch, tmp_path):
     monkeypatch.setattr(module, "WEBSERVER_SKIN", "truck-kun")
     monkeypatch.setattr(module, "WEBSERVER_PASSWORD", "")
     monkeypatch.setattr(module, "WEB_LIST_FREQUENCY", 60)
-    monkeypatch.setattr(module.OOSDetector, "space_usage", lambda: SimpleNamespace(free=4000000000, total=10000000000))
+    monkeypatch.setattr(
+        module.DiskSpaceMonitor, "space_usage", lambda: SimpleNamespace(free=4000000000, total=10000000000)
+    )
     files = []
     for index in (1, 2):
         filename = f"example_streamer-20261123-12000{index}.mp4"

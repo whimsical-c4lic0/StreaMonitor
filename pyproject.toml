@@ -44,16 +44,31 @@ extend-exclude = [".venv", "downloads"]
 quote-style = "preserve"
 
 [tool.ruff.lint]
-select = ["E", "F"]
+# Start from the low-risk baseline documented in the code-quality plan:
+# pycodestyle errors, pyflakes, and import ordering. Formatting handles layout.
+select = ["E4", "E7", "E9", "F", "I"]
 ignore = [
     "E501",  # line length is enforced by the formatter
 ]
+
+[tool.ruff.lint.isort]
+known-first-party = ["parameters", "streamonitor"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # re-exports are part of the package API
 
 [tool.mypy]
 python_version = "3.10"
-files = ["streamonitor/enums", "streamonitor/models", "streamonitor/utils"]
+# Incremental boundary policy: check configuration, service, backend, model and
+# utility modules first. Bodies of untyped functions are not checked yet; add
+# annotations to new code instead of widening ignores.
+files = [
+    "streamonitor/config.py",
+    "streamonitor/enums",
+    "streamonitor/managers",
+    "streamonitor/models",
+    "streamonitor/utils",
+]
 ignore_missing_imports = true
 warn_unused_ignores = true
+warn_unused_configs = true

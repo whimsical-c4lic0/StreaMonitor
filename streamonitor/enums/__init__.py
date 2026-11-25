@@ -1,5 +1,5 @@
 from .countries import COUNTRIES
-from .gender import Gender, GENDER_DATA
+from .gender import GENDER_DATA, Gender
 from .status import Status
 
 __all__ = ['COUNTRIES', 'GENDER_DATA', 'Gender', 'Status']

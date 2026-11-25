@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, TypedDict, TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Dict, TypedDict
 
 if TYPE_CHECKING:
     from streamonitor.bot import Bot

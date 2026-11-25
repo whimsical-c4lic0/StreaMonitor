@@ -38,14 +38,8 @@ jobs:
       - name: Install locked development dependencies
         run: uv sync --frozen
 
-      - name: Ruff lint
-        run: uv run --frozen --no-sync ruff check .
-
-      - name: Ruff format check
-        run: uv run --frozen --no-sync ruff format --check .
-
-      - name: Type check
-        run: uv run --frozen --no-sync mypy
+      - name: Lint, format, and type check
+        run: ./scripts/check.sh
 
   test:
     name: test (${{ matrix.python-version }})

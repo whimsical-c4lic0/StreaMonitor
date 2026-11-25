@@ -1,37 +1,37 @@
-from itertools import islice
-from typing import cast, Union
-
-from flask import Flask, make_response, render_template, request, send_from_directory, Response
-import os
 import json
 import logging
+import os
+from functools import wraps
+from itertools import islice
+from secrets import compare_digest
+from typing import Union, cast
 
+from flask import Flask, Response, make_response, render_template, request, send_from_directory
+
+import streamonitor.log as log
 from parameters import (
-    WEBSERVER_HOST,
-    WEBSERVER_PORT,
-    WEBSERVER_PASSWORD,
     WEB_LIST_FREQUENCY,
     WEB_STATUS_FREQUENCY,
+    WEBSERVER_HOST,
+    WEBSERVER_PASSWORD,
+    WEBSERVER_PORT,
     WEBSERVER_SKIN,
 )
-import streamonitor.log as log
-from functools import wraps
-from secrets import compare_digest
-from streamonitor.bot import Bot, LOADED_SITES
+from streamonitor.bot import LOADED_SITES, Bot
 from streamonitor.enums import Status
 from streamonitor.manager import Manager
-from streamonitor.managers.outofspace_detector import OOSDetector
+from streamonitor.managers.disk_space_monitor import DiskSpaceMonitor
 from streamonitor.utils import human_file_size
 
-from .filters import status_icon, status_text, reltime, abstime
+from .filters import abstime, reltime, status_icon, status_text
 from .mappers import web_status_lookup
 from .models import InvalidStreamer
 from .utils import (
     confirm_deletes,
-    streamer_list,
     get_recording_query_params,
     get_streamer_context,
     set_streamer_list_cookies,
+    streamer_list,
 )
 
 
@@ -64,7 +64,7 @@ class HTTPManager(Manager):
         def skin_context():
             if self.skin != 'truck-kun':
                 return {}
-            usage = OOSDetector.space_usage()
+            usage = DiskSpaceMonitor.space_usage()
             return {
                 'ui_free_space': human_file_size(usage.free),
                 'ui_total_space': human_file_size(usage.total),
@@ -143,8 +143,8 @@ class HTTPManager(Manager):
                     {
                         "streamers": json_streamer,
                         "freeSpace": {
-                            "percentage": str(round(OOSDetector.free_space(), 3)),
-                            "absolute": human_file_size(OOSDetector.space_usage().free),
+                            "percentage": str(round(DiskSpaceMonitor.free_space(), 3)),
+                            "absolute": human_file_size(DiskSpaceMonitor.space_usage().free),
                         },
                     }
                 ),
@@ -159,7 +159,7 @@ class HTTPManager(Manager):
         @app.route('/', methods=['GET'])
         @login_required
         def status():
-            usage = OOSDetector.space_usage()
+            usage = DiskSpaceMonitor.space_usage()
             streamers, filter_context = streamer_list(self.streamers, request)
             context = {
                 'streamers': streamers,

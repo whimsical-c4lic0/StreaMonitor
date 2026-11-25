@@ -1,14 +1,16 @@
+import base64
+import hashlib
 import itertools
 import json
 import os.path
 import random
-import requests
-import base64
-import hashlib
 
+import requests
+
+from parameters import PROJECT_ROOT
 from streamonitor.bot import RoomIdBot
 from streamonitor.downloaders.hls import getVideoNativeHLS
-from streamonitor.enums import Status, Gender, COUNTRIES
+from streamonitor.enums import COUNTRIES, Gender, Status
 
 
 class StripChat(RoomIdBot):
@@ -17,7 +19,7 @@ class StripChat(RoomIdBot):
 
     bulk_update = True
     _static_data = None
-    _mouflon_cache_filename = 'stripchat_mouflon_keys.json'
+    _mouflon_cache_filename = str(PROJECT_ROOT / 'stripchat_mouflon_keys.json')
     _mouflon_keys: dict = None
     _cached_keys: dict[str, bytes] = None
     _user_id_cache: dict[str, str] = {}
@@ -27,17 +29,22 @@ class StripChat(RoomIdBot):
 
     _GENDER_MAP = {'female': Gender.FEMALE, 'male': Gender.MALE, 'maleFemale': Gender.BOTH}
 
-    if os.path.exists(_mouflon_cache_filename):
-        with open(_mouflon_cache_filename) as f:
-            try:
-                if not isinstance(_mouflon_keys, dict):
-                    _mouflon_keys = {}
-                _mouflon_keys.update(json.load(f))
-                print('Loaded StripChat mouflon key cache')
-            except Exception as e:
-                print('Error loading mouflon key cache:', e)
+    @classmethod
+    def _load_mouflon_cache(cls):
+        if cls._mouflon_keys is not None:
+            return
+        cls._mouflon_keys = {}
+        if not os.path.exists(cls._mouflon_cache_filename):
+            return
+        try:
+            with open(cls._mouflon_cache_filename) as f:
+                cls._mouflon_keys.update(json.load(f))
+            print('Loaded StripChat mouflon key cache')
+        except Exception as e:
+            print('Error loading mouflon key cache:', e)
 
     def __init__(self, username, room_id=None):
+        self._load_mouflon_cache()
         if StripChat._static_data is None:
             StripChat._static_data = {}
             try:

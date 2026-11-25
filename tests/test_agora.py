@@ -341,6 +341,7 @@ class FakeProcess:
 
 def test_webrtc_backend_writes_a_private_config(tmp_path, monkeypatch):
     import json
+
     from streamonitor.downloaders import agora_webrtc
 
     process = FakeProcess()

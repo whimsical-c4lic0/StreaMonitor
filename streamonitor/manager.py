@@ -1,14 +1,15 @@
 import math
 from threading import Thread
-from termcolor import colored
+
 import terminaltables.terminal_io
+from termcolor import colored
 from terminaltables import AsciiTable
+
 import streamonitor.config as config
 import streamonitor.log as log
-from streamonitor.bot import Bot, LOADED_SITES
-from streamonitor.managers.outofspace_detector import OOSDetector
-
+from streamonitor.bot import LOADED_SITES, Bot
 from streamonitor.enums import Status
+from streamonitor.managers.disk_space_monitor import DiskSpaceMonitor
 
 
 class Manager(Thread):
@@ -138,7 +139,9 @@ class Manager(Thread):
         else:
             for streamer in self.streamers:
                 line()
-        return "Status:\n" + f'Free space: {str(round(OOSDetector.free_space(), 3))}%\n\n' + AsciiTable(output).table
+        return (
+            "Status:\n" + f'Free space: {str(round(DiskSpaceMonitor.free_space(), 3))}%\n\n' + AsciiTable(output).table
+        )
 
     def do_status2(self, streamer, username, site):
         maxlen = max([len(s.username) for s in self.streamers] or [0])
