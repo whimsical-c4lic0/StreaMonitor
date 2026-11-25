@@ -66,6 +66,27 @@ FFMPEG_READRATE = env.float("STRMNTR_FFMPEG_READRATE", 0)
 # minutes without any error. Set to 0 to disable the watchdog.
 FFMPEG_STALL_TIMEOUT = env.int("STRMNTR_FFMPEG_STALL_TIMEOUT", 45)
 
+# Deadlines for non-streaming ffmpeg work. Streaming recordings are governed
+# by FFMPEG_STALL_TIMEOUT instead; probes, remuxes and recovery merges must
+# always finish, otherwise a damaged file can block the next recording.
+FFMPEG_PROBE_TIMEOUT = env.int("STRMNTR_FFMPEG_PROBE_TIMEOUT", 60)
+FFMPEG_REMUX_TIMEOUT = env.int("STRMNTR_FFMPEG_REMUX_TIMEOUT", 900)
+
+# Native HLS transport policy. Playlist refreshes and segment transfers are
+# short requests, so they get finite connect/read timeouts and a small retry
+# budget. Long-lived streams (ffmpeg, WebRTC) do not use these values.
+HTTP_CONNECT_TIMEOUT = env.float("STRMNTR_HTTP_CONNECT_TIMEOUT", 10.0)
+HLS_PLAYLIST_TIMEOUT = env.float("STRMNTR_HLS_PLAYLIST_TIMEOUT", 20.0)
+HLS_SEGMENT_TIMEOUT = env.float("STRMNTR_HLS_SEGMENT_TIMEOUT", 60.0)
+HTTP_RETRY_ATTEMPTS = env.int("STRMNTR_HTTP_RETRY_ATTEMPTS", 3)
+HTTP_RETRY_BASE_DELAY = env.float("STRMNTR_HTTP_RETRY_BASE_DELAY", 0.5)
+HTTP_RETRY_MAX_DELAY = env.float("STRMNTR_HTTP_RETRY_MAX_DELAY", 8.0)
+
+# How long shutdown waits for the native HLS worker after requesting a stop.
+# A blocked request is already bounded by the timeouts above; this deadline
+# only protects the caller from an unexpected hang.
+HLS_STOP_DEADLINE = env.float("STRMNTR_HLS_STOP_DEADLINE", 90.0)
+
 # Specify the segment time in seconds
 # If None, the video will be downloaded as a single file
 # Example:

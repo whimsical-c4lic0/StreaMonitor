@@ -4,10 +4,10 @@ import subprocess
 from contextlib import closing
 from threading import Thread
 
-from ffmpy import FFmpeg, FFRuntimeError
 from websocket import WebSocketConnectionClosedException, WebSocketException, create_connection
 
-from parameters import CONTAINER, DEBUG, FFMPEG_PATH, SEGMENT_TIME
+from parameters import CONTAINER, DEBUG, FFMPEG_PATH, FFMPEG_REMUX_TIMEOUT, HLS_STOP_DEADLINE, SEGMENT_TIME
+from streamonitor.downloaders.process import format_failure, run_bounded
 
 
 def getVideoWSSVR(self, url, filename):
@@ -66,28 +66,68 @@ def getVideoWSSVR(self, url, filename):
     def terminate():
         self.stopDownloadFlag = True
 
-    process = Thread(target=execute)
+    process = Thread(target=execute, daemon=True)
     process.start()
     self.stopDownload = terminate
-    process.join()
-    self.stopDownload = None
+    still_alive = False
+    try:
+        process.join(HLS_STOP_DEADLINE)
+        still_alive = process.is_alive()
+        if still_alive:
+            self.logger.error(
+                f'WebSocket downloader did not stop within {HLS_STOP_DEADLINE}s; '
+                f'keeping {os.path.basename(tmpfilename)} for recovery'
+            )
+    finally:
+        self.stopDownload = None
 
-    if error:
+    if error or still_alive:
         return False
 
     # Post-processing
-    try:
-        stdout = open(filename + '.postprocess_stdout.log', 'w+') if DEBUG else subprocess.DEVNULL
-        stderr = open(filename + '.postprocess_stderr.log', 'w+') if DEBUG else subprocess.DEVNULL
-        output_str = '-c:a copy -c:v copy'
-        if SEGMENT_TIME is not None:
-            output_str += f' -f segment -reset_timestamps 1 -segment_time {str(SEGMENT_TIME)}'
-            filename = basefilename + '_%03d' + suffix + '.' + CONTAINER
-        ff = FFmpeg(executable=FFMPEG_PATH, inputs={tmpfilename: '-ignore_editlist 1'}, outputs={filename: output_str})
-        ff.run(stdout=stdout, stderr=stderr)
-        os.remove(tmpfilename)
-    except FFRuntimeError as e:
-        if e.exit_code and e.exit_code != 255:
-            return False
+    cmd = [FFMPEG_PATH, '-ignore_editlist', '1', '-i', tmpfilename, '-c:a', 'copy', '-c:v', 'copy']
+    if SEGMENT_TIME is not None:
+        cmd.extend(['-f', 'segment', '-reset_timestamps', '1', '-segment_time', str(SEGMENT_TIME)])
+        filename = basefilename + '_%03d' + suffix + '.' + CONTAINER
+    cmd.append(filename)
 
+    try:
+        result = run_bounded(
+            cmd,
+            timeout=FFMPEG_REMUX_TIMEOUT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    except OSError as e:
+        self.logger.error(f'Could not run ffmpeg to finalize the recording: {e}')
+        return False
+
+    if DEBUG:
+        _write_debug_log(filename + '.postprocess_stderr.log', result.stderr)
+        _write_debug_log(filename + '.postprocess_stdout.log', result.stdout)
+
+    if result.timed_out:
+        self.logger.error(
+            f'ffmpeg did not finalize the recording within {FFMPEG_REMUX_TIMEOUT}s; '
+            f'keeping {os.path.basename(tmpfilename)} for recovery'
+        )
+        return False
+    if result.returncode != 0 and result.returncode != 255:
+        self.logger.error(f'ffmpeg could not finalize the recording ({format_failure(result)})')
+        return False
+
+    try:
+        os.remove(tmpfilename)
+    except OSError:
+        pass
     return True
+
+
+def _write_debug_log(path, data):
+    if not data:
+        return
+    try:
+        with open(path, 'wb') as log:
+            log.write(data)
+    except OSError:
+        pass

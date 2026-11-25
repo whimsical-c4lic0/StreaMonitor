@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import stat
 import subprocess
 import threading
 import time
@@ -306,6 +307,23 @@ def test_finalize_rejects_a_header_only_output(tmp_path, monkeypatch):
 
     monkeypatch.setattr(agora.subprocess, "run", fake_run)
     assert agora.finalize_recording(str(source), str(output)) is False
+    assert source.exists()
+
+
+def test_finalize_timeout_keeps_the_source(tmp_path, monkeypatch):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x" * 2048)
+    output = tmp_path / "out.mp4"
+
+    sleeper = tmp_path / "sleep-ffmpeg"
+    sleeper.write_text("#!/bin/sh\nsleep 30\n")
+    sleeper.chmod(sleeper.stat().st_mode | stat.S_IEXEC)
+    monkeypatch.setattr(agora, "FFMPEG_PATH", str(sleeper))
+    monkeypatch.setattr(parameters, "FFMPEG_REMUX_TIMEOUT", 0.2)
+
+    started = time.monotonic()
+    assert agora.finalize_recording(str(source), str(output)) is False
+    assert time.monotonic() - started < 10
     assert source.exists()
 
 

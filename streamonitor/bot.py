@@ -22,12 +22,15 @@ from parameters import (
     DEBUG,
     DOWNLOADS_DIR,
     FFMPEG_PATH,
+    FFMPEG_PROBE_TIMEOUT,
+    FFMPEG_REMUX_TIMEOUT,
     HTTP_USER_AGENT,
     SEGMENT_TIME,
     WANTED_RESOLUTION,
     WANTED_RESOLUTION_PREFERENCE,
 )
 from streamonitor.downloaders.ffmpeg import getVideoFfmpeg
+from streamonitor.downloaders.process import format_failure, run_bounded
 from streamonitor.enums import COUNTRIES, GENDER_DATA, Gender, Status
 from streamonitor.models import VideoData
 
@@ -235,15 +238,22 @@ class Bot(Thread):
         playable and would make the merge stop early.
         """
         try:
-            result = subprocess.run(
+            result = run_bounded(
                 [FFMPEG_PATH, '-v', 'error', '-xerror', '-i', path, '-t', '0', '-f', 'null', '-'],
+                timeout=FFMPEG_PROBE_TIMEOUT,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
             )
         except OSError as e:
             # Let the merge itself report a missing ffmpeg.
             self.logger.warning(e)
             return True
+        if result.timed_out:
+            self.logger.warning(
+                f'Timed out probing {os.path.basename(path)} after {FFMPEG_PROBE_TIMEOUT}s; '
+                'keeping it as a separate file'
+            )
+            return False
         return result.returncode == 0
 
     def finalizeRecording(self):
@@ -316,7 +326,7 @@ class Bot(Thread):
                     list_file.write(f"file '{path}'\n")
 
             self.log(f'Merging {len(usable)} recording parts into one file')
-            result = subprocess.run(
+            result = run_bounded(
                 [
                     FFMPEG_PATH,
                     '-hide_banner',
@@ -333,13 +343,14 @@ class Bot(Thread):
                     '-y',
                     merged_path,
                 ],
+                timeout=FFMPEG_REMUX_TIMEOUT,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
             )
             merged_size = os.path.getsize(merged_path) if os.path.exists(merged_path) else 0
             # The concat demuxer reports success even when it stops at a part
             # it cannot read, so a much smaller result means a partial merge.
-            if result.returncode == 0 and merged_size >= total_size * 0.85:
+            if result.ok and merged_size >= total_size * 0.85:
                 os.replace(merged_path, base)
                 for part in usable:
                     if part != base:
@@ -348,11 +359,7 @@ class Bot(Thread):
                         except OSError:
                             pass
             else:
-                output = result.stderr.decode('utf-8', 'replace').strip().splitlines()
-                self.logger.error(
-                    'Could not merge recording parts, keeping them separate: '
-                    + (output[-1] if output else 'unknown error')
-                )
+                self.logger.error('Could not merge recording parts, keeping them separate: ' + format_failure(result))
         except Exception as e:
             self.logger.exception(e)
         finally:
@@ -446,16 +453,15 @@ class Bot(Thread):
                 pass
             return True
 
-        result = subprocess.run(
+        result = run_bounded(
             [FFMPEG_PATH, '-hide_banner', '-loglevel', 'error', '-y', '-i', temp_path, '-c', 'copy', target],
+            timeout=FFMPEG_REMUX_TIMEOUT,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
         )
-        if result.returncode != 0 or not os.path.exists(target) or os.path.getsize(target) == 0:
-            output = result.stderr.decode('utf-8', 'replace').strip().splitlines()
+        if not result.ok or not os.path.exists(target) or os.path.getsize(target) == 0:
             self.logger.warning(
-                f'Could not recover {os.path.basename(temp_path)}, keeping it: '
-                + (output[-1] if output else 'unknown error')
+                f'Could not recover {os.path.basename(temp_path)}, keeping it: ' + format_failure(result)
             )
             return False
         try:
