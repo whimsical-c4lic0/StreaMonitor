@@ -24,6 +24,7 @@ import parameters
 from parameters import CONTAINER, DEBUG, FFMPEG_PATH
 from streamonitor.bot import Bot
 from streamonitor.downloaders.agora_webrtc import AgoraBackendUnavailable, AgoraWebRTCBackend
+from streamonitor.downloaders.process import format_failure, run_bounded
 
 # A valid MP4 has at least a moov atom and a few frames.  This rejects the
 # header-only file the recorder leaves when the muxer could not open a stream.
@@ -89,6 +90,16 @@ def _segment_prefix(filename: str, suffix: str = "") -> tuple[str, str]:
     return folder, f"{username}-%Y%m%d-%H%M%S{suffix}.{CONTAINER}"
 
 
+def _write_debug_log(path: str, data) -> None:
+    if not data:
+        return
+    try:
+        with open(path, "wb") as log:
+            log.write(data)
+    except OSError:
+        pass
+
+
 def finalize_recording(source: str, filename: str, logger=None, suffix: str = "") -> bool:
     """Remux a recorder file into the configured container.
 
@@ -126,22 +137,30 @@ def finalize_recording(source: str, filename: str, logger=None, suffix: str = ""
         output_path = os.path.splitext(filename)[0] + "." + container
         cmd.append(output_path)
 
-    stdout = open(filename + ".postprocess_stdout.log", "w+") if DEBUG else subprocess.DEVNULL
-    stderr = open(filename + ".postprocess_stderr.log", "w+") if DEBUG else subprocess.DEVNULL
     try:
-        result = subprocess.run(cmd, stdout=stdout, stderr=stderr)
+        result = run_bounded(
+            cmd,
+            timeout=parameters.FFMPEG_REMUX_TIMEOUT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
     except OSError as error:
         if logger is not None:
             logger.error(f"Failed to run ffmpeg: {error}")
         return False
-    finally:
-        for stream in (stdout, stderr):
-            if hasattr(stream, "close"):
-                stream.close()
+
+    if DEBUG:
+        _write_debug_log(filename + ".postprocess_stderr.log", result.stderr)
+        _write_debug_log(filename + ".postprocess_stdout.log", result.stdout)
+
+    if result.timed_out:
+        if logger is not None:
+            logger.error(f"ffmpeg timed out after {parameters.FFMPEG_REMUX_TIMEOUT}s finalizing the Agora recording")
+        return False
 
     if result.returncode != 0:
         if logger is not None:
-            logger.error(f"ffmpeg could not finalize the Agora recording (exit code {result.returncode})")
+            logger.error(f"ffmpeg could not finalize the Agora recording ({format_failure(result)})")
         return False
 
     if output_path is not None:

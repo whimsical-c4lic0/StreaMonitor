@@ -308,6 +308,38 @@ def testWatchdogLeavesGrowingRecordingAlone(tmp_path, monkeypatch):
     assert output.stat().st_size > 0
 
 
+def testWatchdogStopsStalledSegmentedRecording(tmp_path, monkeypatch):
+    segment = tmp_path / "tester-20260101-000000.mp4"
+    fake = makeFakeFfmpeg(tmp_path, f"echo x > '{segment}'; sleep 30")
+    monkeypatch.setattr(ffmpeg_module, "FFMPEG_PATH", fake)
+    monkeypatch.setattr(ffmpeg_module, "FFMPEG_READRATE", 0)
+    monkeypatch.setattr(ffmpeg_module, "FFMPEG_STALL_TIMEOUT", 2)
+    monkeypatch.setattr(ffmpeg_module, "SEGMENT_TIME", 300)
+
+    fbot = FakeBot()
+    started = time.monotonic()
+    result = getVideoFfmpeg(fbot, "https://example.com/live.m3u8", str(tmp_path / "tester-20260101-000000.mp4"))
+    elapsed = time.monotonic() - started
+
+    assert result is False
+    assert elapsed < 25
+
+
+def testWatchdogLeavesGrowingSegmentedRecordingAlone(tmp_path, monkeypatch):
+    segment = tmp_path / "tester-20260101-000000.mp4"
+    fake = makeFakeFfmpeg(tmp_path, f"for i in 1 2 3 4 5 6 7 8; do echo x >> '{segment}'; sleep 0.3; done")
+    monkeypatch.setattr(ffmpeg_module, "FFMPEG_PATH", fake)
+    monkeypatch.setattr(ffmpeg_module, "FFMPEG_READRATE", 0)
+    monkeypatch.setattr(ffmpeg_module, "FFMPEG_STALL_TIMEOUT", 2)
+    monkeypatch.setattr(ffmpeg_module, "SEGMENT_TIME", 300)
+
+    fbot = FakeBot()
+    result = getVideoFfmpeg(fbot, "https://example.com/live.m3u8", str(tmp_path / "tester-20260101-000000.mp4"))
+
+    assert result is True
+    assert segment.stat().st_size > 0
+
+
 def testReadrateIsOmittedWhenDisabled(tmp_path, monkeypatch):
     args_file = tmp_path / "args"
     fake = makeFakeFfmpeg(tmp_path, f"printf '%s\\n' \"$@\" > '{args_file}'")

@@ -1,4 +1,5 @@
 import errno
+import glob
 import os
 import subprocess
 import sys
@@ -89,8 +90,14 @@ def getVideoFfmpeg(self, url, filename):
         suffix = self.filename_extra_suffix
 
     output_path = None
+    segment_glob = None
     if SEGMENT_TIME is not None:
         username = filename.rsplit('-', maxsplit=2)[0]
+        # Segment mode writes files ffmpeg names itself.  Track their aggregate
+        # size so the stall watchdog still works when there is no single
+        # output_path.  The recording folder can contain glob metacharacters
+        # (for example "name [site]"), so escape the pattern.
+        segment_glob = glob.escape(username) + '-*' + glob.escape(suffix) + '.' + CONTAINER
         cmd.extend(
             [
                 '-f',
@@ -132,14 +139,33 @@ def getVideoFfmpeg(self, url, filename):
     error = False
     stalled = False
 
+    segment_baseline: dict[str, int] = {}
+
+    def segmentFiles():
+        if not segment_glob:
+            return []
+        files = []
+        for path in glob.glob(segment_glob):
+            try:
+                files.append((path, os.path.getsize(path)))
+            except OSError:
+                pass
+        return files
+
     def outputSize():
         """Current size of the recording, used to detect a stalled ffmpeg."""
-        if output_path is None:
-            return 0
-        try:
-            return os.path.getsize(output_path)
-        except OSError:
-            return 0
+        if output_path is not None:
+            try:
+                return os.path.getsize(output_path)
+            except OSError:
+                return 0
+        # Aggregate progress for segmented output: new files count fully and
+        # files that existed before ffmpeg started only count their growth.
+        total = 0
+        for path, size in segmentFiles():
+            baseline = segment_baseline.get(path)
+            total += size if baseline is None else max(0, size - baseline)
+        return total
 
     def watch(process):
         nonlocal stalled
@@ -166,6 +192,10 @@ def getVideoFfmpeg(self, url, filename):
 
     def execute():
         nonlocal error
+        if segment_glob:
+            # Snapshot existing segments before ffmpeg starts so a previous
+            # show cannot hide a stalled current one.
+            segment_baseline.update(dict(segmentFiles()))
         try:
             stderr = open(filename + '.stderr.log', 'w+') if DEBUG else subprocess.DEVNULL
             startupinfo = None
@@ -185,9 +215,9 @@ def getVideoFfmpeg(self, url, filename):
                 error = True
                 return
 
-        # Segment mode writes files with names ffmpeg chooses, so progress is
-        # not tracked there.
-        if FFMPEG_STALL_TIMEOUT and output_path is not None:
+        # Single-file output uses its size; segmented output uses the
+        # aggregate size of the files ffmpeg creates.
+        if FFMPEG_STALL_TIMEOUT and (output_path is not None or segment_glob):
             Thread(target=watch, args=(process,), daemon=True).start()
 
         while process.poll() is None:
