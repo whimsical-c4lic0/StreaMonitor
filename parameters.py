@@ -135,6 +135,50 @@ AGORA_MAX_DURATION = env.int("STRMNTR_AGORA_MAX_DURATION", 0)
 # new segment is started.
 AGORA_TOKEN_REFRESH_MARGIN = env.int("STRMNTR_AGORA_TOKEN_MARGIN", 300)
 
+# EasyStream recording (AmateurTV)
+#
+# EasyStream delivers fragmented MP4 over a WebSocket edge.  The recorder runs
+# in a Python subprocess so a broken socket or ffmpeg cannot block the monitor.
+EASYSTREAM_BACKEND = env.str("STRMNTR_EASYSTREAM_BACKEND", "websocket")
+
+# Python used for the recorder worker.  Defaults to the interpreter running
+# StreamMonitor so the worker sees the same installed packages.
+EASYSTREAM_PYTHON = env.str("STRMNTR_EASYSTREAM_PYTHON", sys.executable)
+
+# Seconds allowed for subscribing, acquiring a license and receiving the first
+# media fragment before the downloader reports no media.
+EASYSTREAM_STARTUP_TIMEOUT = env.int("STRMNTR_EASYSTREAM_STARTUP_TIMEOUT", 60)
+
+# WebSocket connection timeout for one edge.
+EASYSTREAM_CONNECT_TIMEOUT = env.float("STRMNTR_EASYSTREAM_CONNECT_TIMEOUT", 10.0)
+
+# Seconds to wait for a graceful worker shutdown before killing it.
+EASYSTREAM_STOP_TIMEOUT = env.int("STRMNTR_EASYSTREAM_STOP_TIMEOUT", 15)
+
+# Renew the viewer token this many seconds before it expires.
+EASYSTREAM_TOKEN_REFRESH_MARGIN = env.int("STRMNTR_EASYSTREAM_TOKEN_MARGIN", 60)
+
+# Seconds allowed for a ClearKey license response, including retries.
+EASYSTREAM_LICENSE_TIMEOUT = env.int("STRMNTR_EASYSTREAM_LICENSE_TIMEOUT", 20)
+
+# Drop and reconnect when the edge has been silent for this many seconds.
+EASYSTREAM_SILENCE_TIMEOUT = env.int("STRMNTR_EASYSTREAM_SILENCE_TIMEOUT", 10)
+
+# Hard limit in seconds for one recording part; 0 disables the limit.
+EASYSTREAM_MAX_DURATION = env.int("STRMNTR_EASYSTREAM_MAX_DURATION", 0)
+
+# Bounds for media buffered while waiting for an init segment or a license,
+# and for data queued for a slow ffmpeg.
+EASYSTREAM_BUFFER_BYTES = env.int("STRMNTR_EASYSTREAM_BUFFER_BYTES", 32 * 1024 * 1024)
+EASYSTREAM_BUFFER_SECONDS = env.int("STRMNTR_EASYSTREAM_BUFFER_SECONDS", 20)
+EASYSTREAM_OUTPUT_BUFFER_BYTES = env.int("STRMNTR_EASYSTREAM_OUTPUT_BUFFER_BYTES", 16 * 1024 * 1024)
+EASYSTREAM_MAX_MESSAGE_BYTES = env.int("STRMNTR_EASYSTREAM_MAX_MESSAGE_BYTES", 16 * 1024 * 1024)
+
+# Reconnect policy between parts (transport drops, token expiry, key changes).
+EASYSTREAM_RECONNECT_BASE = env.float("STRMNTR_EASYSTREAM_RECONNECT_BASE", 0.5)
+EASYSTREAM_RECONNECT_MAX = env.float("STRMNTR_EASYSTREAM_RECONNECT_MAX", 15.0)
+EASYSTREAM_MAX_RECONNECTS = env.int("STRMNTR_EASYSTREAM_MAX_RECONNECTS", 4)
+
 # HTTP Manager configuration
 
 # Bind address for the web server
