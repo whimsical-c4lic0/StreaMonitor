@@ -8,16 +8,23 @@ from __future__ import annotations
 
 import logging
 import stat
+import sys
 import threading
 import time
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 import pytest
 
 import streamonitor.bot as bot_module
 from parameters import CONTAINER
 from streamonitor.bot import Bot
-from streamonitor.downloaders.process import format_failure, run_bounded, stderr_tail
+from streamonitor.downloaders.process import (
+    child_process_options,
+    format_failure,
+    run_bounded,
+    stderr_tail,
+)
 from streamonitor.downloaders.transport import (
     RetryPolicy,
     TransferCancelled,
@@ -137,6 +144,39 @@ def test_redact_headers_masks_authorization_and_cookies():
     assert redacted["User-Agent"] == "ua"
     assert redacted["Authorization"] == "***"
     assert redacted["Cookie"] == "***"
+
+
+# -- child process hardening ------------------------------------------------
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX has no child console window")
+def test_child_process_options_are_empty_off_windows():
+    assert child_process_options() == {}
+
+
+def test_child_process_options_quiet_a_windows_helper(monkeypatch):
+    import subprocess as subprocess_module
+
+    import streamonitor.downloaders.process as process_module
+
+    class FakeStartupInfo:
+        def __init__(self):
+            self.dwFlags = 0
+            self.wShowWindow = None
+
+    monkeypatch.setattr(process_module, "sys", SimpleNamespace(platform="win32"))
+    monkeypatch.setattr(process_module, "_error_mode_set", False)
+    monkeypatch.setattr(subprocess_module, "STARTUPINFO", FakeStartupInfo, raising=False)
+    monkeypatch.setattr(subprocess_module, "STARTF_USESHOWWINDOW", 0x00000001, raising=False)
+    monkeypatch.setattr(subprocess_module, "SW_HIDE", 0, raising=False)
+    monkeypatch.setattr(subprocess_module, "CREATE_NO_WINDOW", 0x08000000, raising=False)
+
+    options = child_process_options()
+
+    assert options["creationflags"] == 0x08000000
+    assert options["startupinfo"].dwFlags & 0x00000001
+    assert options["startupinfo"].wShowWindow == 0
+    assert process_module._error_mode_set is True
 
 
 # -- bounded subprocesses ---------------------------------------------------

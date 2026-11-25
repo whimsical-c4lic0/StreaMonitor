@@ -4,15 +4,80 @@
 cannot block the monitor forever.  Captured stderr is kept in a temporary file
 and truncated to a bounded tail; this preserves useful diagnostics without
 letting a noisy process consume memory.
+
+On Windows, helpers are started without a console window and with Windows
+Error Reporting dialogs disabled, so a crashing ffmpeg cannot block the
+operator with a modal dialog.
 """
 
 from __future__ import annotations
 
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass
 
-__all__ = ["CommandResult", "format_failure", "run_bounded", "stderr_tail"]
+__all__ = [
+    "CommandResult",
+    "child_process_options",
+    "format_failure",
+    "run_bounded",
+    "stderr_tail",
+]
+
+# Windows Error Reporting shows a modal dialog and writes a crash dump when a
+# child process dies of an unhandled exception.  A helper that crashes is
+# already reported as a failed command, so the dialog would only block the
+# operator.  The error mode is inherited by children created afterwards.
+_SEM_FAILCRITICALERRORS = 0x0001
+_SEM_NOGPFAULTERRORBOX = 0x0002
+_SEM_NOOPENFILEERRORBOX = 0x8000
+_QUIET_ERROR_MODE = _SEM_FAILCRITICALERRORS | _SEM_NOGPFAULTERRORBOX | _SEM_NOOPENFILEERRORBOX
+
+_error_mode_set = False
+
+
+def suppress_child_error_dialogs() -> None:
+    """Disable Windows Error Reporting dialogs for child processes.
+
+    The error mode is process-wide and inherited by newly created children, so
+    this only has to run once before the first helper starts.  Failures are
+    ignored: a missing dialog is cosmetic, while recordings must keep working.
+    """
+    global _error_mode_set
+    if sys.platform != "win32" or _error_mode_set:
+        return
+    _error_mode_set = True
+    try:
+        import ctypes
+
+        ctypes.windll.kernel32.SetErrorMode(_QUIET_ERROR_MODE)
+    except Exception:
+        pass
+
+
+def _hidden_startupinfo():
+    """STARTUPINFO that keeps a console helper from flashing a window."""
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = subprocess.SW_HIDE
+    return startupinfo
+
+
+def child_process_options() -> dict:
+    """Platform options that keep a crashing helper process quiet.
+
+    On POSIX this is empty.  On Windows it hides the helper's console window
+    and stops a crash from raising a Windows Error Reporting dialog.
+    """
+    if sys.platform != "win32":
+        return {}
+    suppress_child_error_dialogs()
+    return {
+        "startupinfo": _hidden_startupinfo(),
+        "creationflags": subprocess.CREATE_NO_WINDOW,
+    }
+
 
 # Enough context for ffmpeg's final error line without unbounded output.
 STDERR_CAPTURE_LIMIT = 64 * 1024
@@ -56,6 +121,7 @@ def run_bounded(
             stderr=stderr_target,
             stdin=stdin,
             cwd=cwd,
+            **child_process_options(),
         )
     except subprocess.TimeoutExpired:
         # subprocess.run has already killed and waited for the child.

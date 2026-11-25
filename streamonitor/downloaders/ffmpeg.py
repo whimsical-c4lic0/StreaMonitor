@@ -2,7 +2,6 @@ import errno
 import glob
 import os
 import subprocess
-import sys
 import threading
 import time
 from threading import Thread
@@ -10,6 +9,7 @@ from threading import Thread
 import requests.cookies
 
 from parameters import CONTAINER, DEBUG, FFMPEG_PATH, FFMPEG_READRATE, FFMPEG_STALL_TIMEOUT, SEGMENT_TIME
+from streamonitor.downloaders.process import child_process_options
 
 
 def _buildInputArgs(url):
@@ -198,12 +198,12 @@ def getVideoFfmpeg(self, url, filename):
             segment_baseline.update(dict(segmentFiles()))
         try:
             stderr = open(filename + '.stderr.log', 'w+') if DEBUG else subprocess.DEVNULL
-            startupinfo = None
-            if sys.platform == "win32":
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             process = subprocess.Popen(
-                args=cmd, stdin=subprocess.PIPE, stderr=stderr, stdout=subprocess.DEVNULL, startupinfo=startupinfo
+                args=cmd,
+                stdin=subprocess.PIPE,
+                stderr=stderr,
+                stdout=subprocess.DEVNULL,
+                **child_process_options(),
             )
         except OSError as e:
             if e.errno == errno.ENOENT:
