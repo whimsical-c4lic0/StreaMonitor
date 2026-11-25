@@ -50,5 +50,6 @@ jobs:
       - name: Visit live streaming sites
         env:
           STRMNTR_E2E: "1"
+          STRMNTR_E2E_WORKERS: "3"
           STRMNTR_REQUIRE_MEDIA_TOOLS: "1"
         run: uv run --frozen --no-sync pytest tests/e2e -m e2e -v

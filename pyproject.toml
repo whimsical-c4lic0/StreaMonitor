@@ -29,6 +29,7 @@ dependencies = [
 dev = [
     "mypy>=1.19,<2.5",
     "pytest>=8.0",
+    "pytest-xdist>=3.8,<4",
     "ruff>=0.14,<0.18",
 ]
 

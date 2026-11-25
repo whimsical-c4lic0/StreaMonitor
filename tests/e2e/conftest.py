@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import sys
@@ -72,6 +73,48 @@ os.environ.setdefault("STRMNTR_DEBUG", "1")
 
 def e2e_enabled() -> bool:
     return os.environ.get("STRMNTR_E2E") == "1"
+
+
+def _e2e_workers() -> int | None:
+    """Concurrency requested through ``STRMNTR_E2E_WORKERS``.
+
+    ``None`` and ``1`` keep the suite sequential, which is the default.
+    """
+    raw = os.environ.get("STRMNTR_E2E_WORKERS")
+    if not raw:
+        return None
+    try:
+        workers = int(raw)
+    except ValueError:
+        raise pytest.UsageError(f"STRMNTR_E2E_WORKERS must be a positive integer, got {raw!r}") from None
+    if workers < 1:
+        raise pytest.UsageError(f"STRMNTR_E2E_WORKERS must be a positive integer, got {raw!r}")
+    return workers
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_cmdline_main(config):
+    """Turn ``STRMNTR_E2E_WORKERS`` into pytest-xdist's ``-n`` option.
+
+    Each live site is an independent parametrized case, so a few can run at
+    once.  Nothing runs in parallel unless the variable asks for it.  xdist
+    computes its worker list in its own ``pytest_cmdline_main`` hook, so set
+    ``numprocesses`` here before that runs; workers load this conftest again
+    and are skipped by the ``workerinput`` guard.
+    """
+    if not e2e_enabled() or hasattr(config, "workerinput"):
+        return None
+    if getattr(config.option, "numprocesses", None) is not None:
+        return None
+    workers = _e2e_workers()
+    if workers is None or workers == 1:
+        return None
+    if importlib.util.find_spec("xdist") is None:
+        raise pytest.UsageError(
+            "STRMNTR_E2E_WORKERS needs pytest-xdist; install the development dependencies with `uv sync`"
+        )
+    config.option.numprocesses = workers
+    return None
 
 
 def pytest_collection_modifyitems(config, items):
