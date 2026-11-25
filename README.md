@@ -119,6 +119,7 @@ Its data must stay writable by that user, so when bind-mounting host files and
 directories, set ownership once:
 
 ```sh
+touch config.json stripchat_mouflon_keys.json
 chown -R 1000:1000 downloads config.json stripchat_mouflon_keys.json
 ```
 
@@ -130,9 +131,15 @@ from the project root, not the directory you launch the process from. Relative
 `STRMNTR_DOWNLOAD_DIR` values are also resolved against the project root.
 Override the file locations with `STRMNTR_ENV_FILE` and `STRMNTR_CONFIG`.
 
+`config.json` is created automatically on first run and is ignored by git, so
+it never ends up in a commit.
+
 If a recording is interrupted (network error, stalled ffmpeg, expired stream URL), the next attempt continues in a part file and the parts are merged into a single video when the show ends. `STRMNTR_FFMPEG_STALL_TIMEOUT` (default `45` seconds, `0` disables it) stops ffmpeg when it stops producing output so the recording can resume. If the process is killed before the merge, the leftover `.partN` files and the raw HLS download (`<show>.tmp.ts`) are finished the next time the streamer starts, so nothing has to be cleaned up by hand.
 
-You also have to add decryption keys yourself for StripChat in the `stripchat_mouflon_keys.json` file.
+You also have to add decryption keys yourself for StripChat in the
+`stripchat_mouflon_keys.json` file. This file is ignored by git; override its
+location with `STRMNTR_MOUFLON_KEYS` (a filename relative to the project root
+or an absolute path).
 
 ## Development
 

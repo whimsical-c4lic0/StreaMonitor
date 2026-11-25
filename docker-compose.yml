@@ -28,8 +28,9 @@ services:
       # Agora simulcast layer for ManyVids (high or low)
       #STRMNTR_AGORA_STREAM: "high"
     volumes:
-      # The image runs as UID/GID 1000. Make these paths writable by that user
-      # (chown -R 1000:1000 downloads config.json stripchat_mouflon_keys.json).
+      # The image runs as UID/GID 1000. Create the files and make these paths
+      # writable by that user (touch config.json stripchat_mouflon_keys.json;
+      # chown -R 1000:1000 downloads config.json stripchat_mouflon_keys.json).
       - ./downloads:/app/downloads
       - ./config.json:/app/config.json
       - ./stripchat_mouflon_keys.json:/app/stripchat_mouflon_keys.json
