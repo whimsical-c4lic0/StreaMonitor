@@ -32,6 +32,21 @@ jobs:
           ffmpeg -version
           ffprobe -version
 
+      - name: Write StripChat mouflon key cache
+        env:
+          MOUFLON_KEYS_JSON: ${{ secrets.STRMNTR_MOUFLON_KEYS }}
+        run: |
+          keys_file="$RUNNER_TEMP/stripchat_mouflon_keys.json"
+          if [ -z "$MOUFLON_KEYS_JSON" ]; then
+            echo "::warning::STRMNTR_MOUFLON_KEYS is not set; StripChat recordings may fail to decrypt"
+            printf '{}\n' > "$keys_file"
+          else
+            printf '%s\n' "$MOUFLON_KEYS_JSON" > "$keys_file"
+            chmod 600 "$keys_file"
+          fi
+          python3 -m json.tool "$keys_file" > /dev/null
+          echo "STRMNTR_MOUFLON_KEYS=$keys_file" >> "$GITHUB_ENV"
+
       - name: Visit live streaming sites
         env:
           STRMNTR_E2E: "1"
