@@ -72,9 +72,7 @@ def e2e_enabled() -> bool:
 def pytest_collection_modifyitems(config, items):
     if e2e_enabled():
         return
-    skip = pytest.mark.skip(
-        reason="live end-to-end tests are opt-in; set STRMNTR_E2E=1 to run them"
-    )
+    skip = pytest.mark.skip(reason="live end-to-end tests are opt-in; set STRMNTR_E2E=1 to run them")
     for item in items:
         if "e2e" in item.keywords:
             item.add_marker(skip)

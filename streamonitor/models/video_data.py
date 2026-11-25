@@ -9,15 +9,14 @@ logger = logging.getLogger(__name__)
 
 class VideoData:
     filename: str
-    mimetype: str
     abs_path: str
-    shortname: str
     filesize: int = 0
     human_readable_filesize: str = '0'
     play = False
 
     def __init__(self, file: os.DirEntry, username: str):
         from streamonitor.utils.human_file_size import human_file_size
+
         self._stat = file.stat()
         self.username = username
         self.filename = file.name

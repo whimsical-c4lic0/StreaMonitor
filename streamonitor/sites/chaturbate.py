@@ -23,10 +23,10 @@ class Chaturbate(Bot):
         super().__init__(username)
         self.sleep_on_offline = 30
         self.sleep_on_error = 60
-    
+
     def getWebsiteURL(self):
         return "https://www.chaturbate.com/" + self.username
-    
+
     def getVideoUrl(self):
         if self.bulk_update:
             self.getStatus()
@@ -62,7 +62,7 @@ class Chaturbate(Bot):
             status = self._parseStatus(self.lastInfo['room_status'])
             if status == status.PUBLIC and not self.lastInfo['url']:
                 status = status.RESTRICTED
-        except:
+        except Exception:
             status = Status.RATELIMIT
 
         self.ratelimit = status == Status.RATELIMIT

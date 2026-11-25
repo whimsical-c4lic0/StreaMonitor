@@ -4,7 +4,9 @@ from streamonitor.bot import Bot
 from streamonitor.enums import Status
 
 
-def filter_streamers(streamer: Bot, username_filter: Union[str, None], site_filter: Union[str, None], status_filter: Union[str, None]):
+def filter_streamers(
+    streamer: Bot, username_filter: Union[str, None], site_filter: Union[str, None], status_filter: Union[str, None]
+):
     result = True
     if username_filter:
         result = result and cast(str, streamer.username).lower().startswith(username_filter.lower())
@@ -31,6 +33,7 @@ def sort_streamers(sort_by):
         elif sort_by == 'last_stream':
             return item.last_stream
         return getattr(item, sort_by)
+
     return _real_sort_streamers
 
 
@@ -43,10 +46,7 @@ def streamer_list(streamers: List[Bot], request):
 
     if username_filter or site_filter or (status_filter and status_filter != 'all'):
         streamers_list = list(
-            filter(
-                lambda x: filter_streamers(x, username_filter, site_filter, status_filter),
-                streamers
-            )
+            filter(lambda x: filter_streamers(x, username_filter, site_filter, status_filter), streamers)
         )
         filtered = True
     else:
@@ -54,8 +54,14 @@ def streamer_list(streamers: List[Bot], request):
         filtered = False
 
     allowed_sort_columns = [
-        'site', 'username', 'running', 'status', 'last_stream',
-        'video_files_total_size', 'video_files_count']
+        'site',
+        'username',
+        'running',
+        'status',
+        'last_stream',
+        'video_files_total_size',
+        'video_files_count',
+    ]
     if sort_by not in allowed_sort_columns:
         sort_by = None
 

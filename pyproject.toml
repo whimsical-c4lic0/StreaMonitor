@@ -26,7 +26,34 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = [
+    "mypy>=1.19,<1.20",
+    "pytest>=8.0",
+    "ruff>=0.14,<0.15",
+]
 
 [tool.uv]
 package = false
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+extend-exclude = [".venv", "downloads"]
+
+[tool.ruff.format]
+quote-style = "preserve"
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = [
+    "E501",  # line length is enforced by the formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # re-exports are part of the package API
+
+[tool.mypy]
+python_version = "3.10"
+files = ["streamonitor/enums", "streamonitor/models", "streamonitor/utils"]
+ignore_missing_imports = true
+warn_unused_ignores = true

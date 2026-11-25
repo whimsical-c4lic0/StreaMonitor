@@ -48,19 +48,17 @@ def getVideoFfmpeg(self, url, filename):
     # playlist. Chaturbate's chunklists only need the session token embedded in
     # their URLs, so they work without the cookie and user-agent options.
     if not is_local_playlist:
-        cmd.extend([
-            '-user_agent', self.headers['User-Agent']
-        ])
+        cmd.extend(['-user_agent', self.headers['User-Agent']])
 
         if type(self.cookies) is requests.cookies.RequestsCookieJar:
             cookies_text = ''
             for cookie in self.cookies:
-                cookies_text += cookie.name + "=" + cookie.value + "; path=" + cookie.path + '; domain=' + cookie.domain + '\n'
+                cookies_text += (
+                    cookie.name + "=" + cookie.value + "; path=" + cookie.path + '; domain=' + cookie.domain + '\n'
+                )
             if len(cookies_text) > 10:
                 cookies_text = cookies_text[:-1]
-            cmd.extend([
-                '-cookies', cookies_text
-            ])
+            cmd.extend(['-cookies', cookies_text])
 
     if FFMPEG_READRATE:
         cmd.extend(['-readrate', f'{FFMPEG_READRATE!s}'])
@@ -68,11 +66,16 @@ def getVideoFfmpeg(self, url, filename):
     # These are HLS demuxer options. FFmpeg refuses to start when they are
     # passed for a non-HLS input (e.g. AmateurTV's progressive fMP4 stream).
     if is_local_playlist or '.m3u8' in str(url).lower():
-        cmd.extend([
-            '-max_reload', '20',
-            '-seg_max_retry', '20',
-            '-m3u8_hold_counters', '20',
-        ])
+        cmd.extend(
+            [
+                '-max_reload',
+                '20',
+                '-seg_max_retry',
+                '20',
+                '-m3u8_hold_counters',
+                '20',
+            ]
+        )
 
     # CMAF master playlists are written to a local temporary file so ffmpeg can
     # align the separate audio and video renditions by program date time.
@@ -87,13 +90,19 @@ def getVideoFfmpeg(self, url, filename):
     output_path = None
     if SEGMENT_TIME is not None:
         username = filename.rsplit('-', maxsplit=2)[0]
-        cmd.extend([
-            '-f', 'segment',
-            '-reset_timestamps', '1',
-            '-segment_time', str(SEGMENT_TIME),
-            '-strftime', '1',
-            f'{username}-%Y%m%d-%H%M%S{suffix}.{CONTAINER}'
-        ])
+        cmd.extend(
+            [
+                '-f',
+                'segment',
+                '-reset_timestamps',
+                '1',
+                '-segment_time',
+                str(SEGMENT_TIME),
+                '-strftime',
+                '1',
+                f'{username}-%Y%m%d-%H%M%S{suffix}.{CONTAINER}',
+            ]
+        )
     else:
         output_path = os.path.splitext(filename)[0] + suffix + '.' + CONTAINER
         # A recording can be interrupted and resumed, so every output file has
@@ -150,8 +159,7 @@ def getVideoFfmpeg(self, url, filename):
             timeout = FFMPEG_STALL_TIMEOUT if last_size > 0 else startup_timeout
             if time.monotonic() - last_change >= timeout:
                 stalled = True
-                self.logger.error(
-                    f'No output for {timeout}s, stopping the stalled recording')
+                self.logger.error(f'No output for {timeout}s, stopping the stalled recording')
                 _stopProcess(process, stop_lock)
                 return
 
@@ -164,7 +172,8 @@ def getVideoFfmpeg(self, url, filename):
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             process = subprocess.Popen(
-                args=cmd, stdin=subprocess.PIPE, stderr=stderr, stdout=subprocess.DEVNULL, startupinfo=startupinfo)
+                args=cmd, stdin=subprocess.PIPE, stderr=stderr, stdout=subprocess.DEVNULL, startupinfo=startupinfo
+            )
         except OSError as e:
             if e.errno == errno.ENOENT:
                 self.logger.error('FFMpeg executable not found!')

@@ -13,17 +13,17 @@ class XLoveCam(Bot):
 
     def getPerformerId(self):
         data = {
-            'config[nickname]':	self.username,
-            'config[favorite]':	"0",
+            'config[nickname]': self.username,
+            'config[favorite]': "0",
             'config[recent]': "0",
             'config[vip]': "0",
-            'config[sort][id]':	"35",
-            'offset[from]':	"0",
+            'config[sort][id]': "35",
+            'offset[from]': "0",
             'offset[length]': "35",
             'origin': "filter-chg",
-            'stat':	"0",
+            'stat': "0",
         }
-        r = requests.post(f'https://www.xlovecam.com/hu/performerAction/onlineList', headers=self.headers, data=data)
+        r = requests.post('https://www.xlovecam.com/hu/performerAction/onlineList', headers=self.headers, data=data)
         if not r.ok:
             return None
         resp = r.json()
@@ -46,7 +46,9 @@ class XLoveCam(Bot):
         data = {
             'performerId': self._id,
         }
-        r = requests.post(f'https://www.xlovecam.com/hu/performerAction/getPerformerRoom', headers=self.headers, data=data)
+        r = requests.post(
+            'https://www.xlovecam.com/hu/performerAction/getPerformerRoom', headers=self.headers, data=data
+        )
 
         if not r.ok:
             return Status.UNKNOWN

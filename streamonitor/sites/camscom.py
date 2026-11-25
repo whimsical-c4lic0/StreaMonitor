@@ -1,4 +1,3 @@
-import requests
 from streamonitor.bot import Bot
 from streamonitor.enums import Status
 
@@ -16,7 +15,7 @@ class CamsCom(Bot):
     def getStatus(self):
         r = self.session.get(f'https://beta-api.cams.com/models/stream/{self.username}/')
         self.lastInfo = r.json()
-        
+
         if 'stream_name' not in self.lastInfo:
             return Status.NOTEXIST
         if self.lastInfo['online'] == '0':
@@ -25,8 +24,9 @@ class CamsCom(Bot):
             return Status.PUBLIC
         if self.lastInfo['online'] is not None:
             return Status.PRIVATE
-            
+
         return Status.UNKNOWN
+
 
 # Known online flag states:
 # 0: Offline
@@ -41,4 +41,3 @@ class CamsCom(Bot):
 # 12: Goal down
 # 13: Group
 # 14: C2C
-

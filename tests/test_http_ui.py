@@ -1,4 +1,5 @@
 """Offline integration coverage for the default server-rendered web skin."""
+
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -53,13 +54,25 @@ def make_test_app(monkeypatch, tmp_path):
         filename = f"example_streamer-20261123-12000{index}.mp4"
         path = tmp_path / filename
         path.write_bytes(b"test video")
-        files.append(SimpleNamespace(filename=filename, shortname=filename, filesize=index * 1000,
-                                     human_readable_filesize=f"{index} KB", mimetype="video/mp4", abs_path=str(path)))
+        files.append(
+            SimpleNamespace(
+                filename=filename,
+                shortname=filename,
+                filesize=index * 1000,
+                human_readable_filesize=f"{index} KB",
+                mimetype="video/mp4",
+                abs_path=str(path),
+            )
+        )
     streamer = FakeStreamer(videos=files)
     streamer.outputFolder = str(tmp_path)
     manager = module.HTTPManager([streamer])
     manager.loaded_site_names = ["Chaturbate", "StripChat"]
-    monkeypatch.setattr(manager, "getStreamer", lambda user, site: next((s for s in manager.streamers if s.username == user and s.site == site), None))
+    monkeypatch.setattr(
+        manager,
+        "getStreamer",
+        lambda user, site: next((s for s in manager.streamers if s.username == user and s.site == site), None),
+    )
     monkeypatch.setattr(manager, "saveConfig", lambda: None)
 
     def add(existing, user, site, start_monitoring=True):
@@ -69,6 +82,7 @@ def make_test_app(monkeypatch, tmp_path):
             return "Failed to add: simulated failure"
         manager.streamers.append(FakeStreamer(user, running=start_monitoring))
         return f"Added [CB] {user}"
+
     monkeypatch.setattr(manager, "do_add", add)
     captured = []
     monkeypatch.setattr(Flask, "run", lambda app, **_: captured.append(app))
@@ -86,6 +100,25 @@ def ui(monkeypatch, tmp_path):
 def soup(response):
     assert response.status_code == 200, response.get_data(as_text=True)
     return BeautifulSoup(response.data, "html.parser")
+
+
+def test_health_endpoint_is_unauthenticated(ui, monkeypatch):
+    app, manager = ui
+    monkeypatch.setattr(module, "WEBSERVER_PASSWORD", "secret")
+    client = app.test_client()
+
+    # The regular API stays protected while the container probe does not.
+    assert client.get("/api/data").status_code == 401
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "status": "ok",
+        "streamers": 1,
+        "monitored": 1,
+        "recording": 0,
+        "offline": 1,
+    }
 
 
 def test_home_has_accessible_drawer_filters_and_real_summary(ui):
@@ -128,7 +161,16 @@ def test_add_respects_monitoring_checkbox(ui, enabled):
     assert page.select_one("#summary[hx-swap-oob]")
 
 
-@pytest.mark.parametrize("username, site", [("ab", "Chaturbate"), ("validname", "unknown"), ("https://room", "Chaturbate"), ("example_streamer", "Chaturbate"), ("failed_streamer", "Chaturbate")])
+@pytest.mark.parametrize(
+    "username, site",
+    [
+        ("ab", "Chaturbate"),
+        ("validname", "unknown"),
+        ("https://room", "Chaturbate"),
+        ("example_streamer", "Chaturbate"),
+        ("failed_streamer", "Chaturbate"),
+    ],
+)
 def test_add_errors_are_non_success_responses(ui, username, site):
     app, manager = ui
     response = app.test_client().post("/add", data={"username": username, "site": site})
@@ -224,8 +266,9 @@ def test_column_headings_toggle_sort_and_preserve_state(ui, key):
     assert not page.select("select[name=sort_by], select[name=sort_dir]")
 
     def heading(page):
-        return next(button for button in page.select("th .column-sort")
-                    if json.loads(button["hx-vals"])["sort_by"] == key)
+        return next(
+            button for button in page.select("th .column-sort") if json.loads(button["hx-vals"])["sort_by"] == key
+        )
 
     # A different column starts ascending; the active column reverses direction.
     params = json.loads(heading(page)["hx-vals"])

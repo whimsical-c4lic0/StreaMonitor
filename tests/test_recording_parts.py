@@ -56,18 +56,42 @@ def makeBot(tmp_path, monkeypatch):
 
 def writeVideo(path, seconds=1):
     subprocess.run(
-        [FFMPEG, "-hide_banner", "-loglevel", "error", "-y",
-         "-f", "lavfi", "-i", f"testsrc=size=160x120:rate=15:duration={seconds}",
-         "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}",
-         "-c:v", "mpeg4", "-q:v", "5", "-c:a", "aac", "-shortest", path],
-        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        [
+            FFMPEG,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"testsrc=size=160x120:rate=15:duration={seconds}",
+            "-f",
+            "lavfi",
+            "-i",
+            f"sine=frequency=440:duration={seconds}",
+            "-c:v",
+            "mpeg4",
+            "-q:v",
+            "5",
+            "-c:a",
+            "aac",
+            "-shortest",
+            path,
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
 
 
 def probeDuration(path):
     result = subprocess.run(
-        [FFPROBE, "-v", "error", "-show_entries", "format=duration",
-         "-of", "csv=p=0", path],
-        check=True, capture_output=True, text=True)
+        [FFPROBE, "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     return float(result.stdout.strip())
 
 
@@ -145,12 +169,37 @@ def testFinalizeMergesFragmentedParts(tmp_path, monkeypatch):
     second = bot.nextRecordingFilename()
     for path in (base, second):
         subprocess.run(
-            [FFMPEG, "-hide_banner", "-loglevel", "error", "-y",
-             "-f", "lavfi", "-i", "testsrc=size=160x120:rate=15:duration=1",
-             "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
-             "-c:v", "mpeg4", "-q:v", "5", "-c:a", "aac", "-shortest",
-             "-movflags", "+frag_keyframe+empty_moov", "-f", "mp4", path],
-            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            [
+                FFMPEG,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=160x120:rate=15:duration=1",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=1",
+                "-c:v",
+                "mpeg4",
+                "-q:v",
+                "5",
+                "-c:a",
+                "aac",
+                "-shortest",
+                "-movflags",
+                "+frag_keyframe+empty_moov",
+                "-f",
+                "mp4",
+                path,
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
 
     bot.finalizeRecording()
 
@@ -247,9 +296,7 @@ def testWatchdogStopsStalledRecording(tmp_path, monkeypatch):
 
 def testWatchdogLeavesGrowingRecordingAlone(tmp_path, monkeypatch):
     output = tmp_path / "tester-20260101-000000.mp4"
-    fake = makeFakeFfmpeg(
-        tmp_path,
-        f"for i in 1 2 3 4 5 6 7 8; do echo x >> '{output}'; sleep 0.3; done")
+    fake = makeFakeFfmpeg(tmp_path, f"for i in 1 2 3 4 5 6 7 8; do echo x >> '{output}'; sleep 0.3; done")
     monkeypatch.setattr(ffmpeg_module, "FFMPEG_PATH", fake)
     monkeypatch.setattr(ffmpeg_module, "FFMPEG_READRATE", 0)
     monkeypatch.setattr(ffmpeg_module, "FFMPEG_STALL_TIMEOUT", 2)
@@ -269,8 +316,7 @@ def testReadrateIsOmittedWhenDisabled(tmp_path, monkeypatch):
     monkeypatch.setattr(ffmpeg_module, "FFMPEG_READRATE", 0)
 
     fbot = FakeBot()
-    getVideoFfmpeg(fbot, "https://example.com/live.m3u8",
-                   str(tmp_path / "tester-20260101-000000.mp4"))
+    getVideoFfmpeg(fbot, "https://example.com/live.m3u8", str(tmp_path / "tester-20260101-000000.mp4"))
 
     assert "-readrate" not in args_file.read_text().splitlines()
 
@@ -284,8 +330,7 @@ def testMp4OutputIsFragmentedSoPartsSurviveKills(tmp_path, monkeypatch):
     monkeypatch.setattr(ffmpeg_module, "CONTAINER", "mp4")
 
     fbot = FakeBot()
-    getVideoFfmpeg(fbot, "https://example.com/live.m3u8",
-                   str(tmp_path / "tester-20260101-000000.mp4"))
+    getVideoFfmpeg(fbot, "https://example.com/live.m3u8", str(tmp_path / "tester-20260101-000000.mp4"))
 
     args = args_file.read_text().splitlines()
     flags = args[args.index("-movflags") + 1]
@@ -304,8 +349,7 @@ def testOtherContainersAreNotFragmented(tmp_path, monkeypatch):
     monkeypatch.setattr(ffmpeg_module, "CONTAINER", "mkv")
 
     fbot = FakeBot()
-    getVideoFfmpeg(fbot, "https://example.com/live.m3u8",
-                   str(tmp_path / "tester-20260101-000000.mkv"))
+    getVideoFfmpeg(fbot, "https://example.com/live.m3u8", str(tmp_path / "tester-20260101-000000.mkv"))
 
     assert "-movflags" not in args_file.read_text().splitlines()
 
@@ -318,8 +362,7 @@ def testReadrateIsPassedWhenConfigured(tmp_path, monkeypatch):
     monkeypatch.setattr(ffmpeg_module, "FFMPEG_READRATE", 1.3)
 
     fbot = FakeBot()
-    getVideoFfmpeg(fbot, "https://example.com/live.m3u8",
-                   str(tmp_path / "tester-20260101-000000.mp4"))
+    getVideoFfmpeg(fbot, "https://example.com/live.m3u8", str(tmp_path / "tester-20260101-000000.mp4"))
 
     args = args_file.read_text().splitlines()
     assert args[args.index("-readrate") + 1] == "1.3"
@@ -346,12 +389,33 @@ def makeRecoveryBot(tmp_path, monkeypatch, container="mkv"):
 
 def writeTs(path, seconds=1):
     subprocess.run(
-        [FFMPEG, "-hide_banner", "-loglevel", "error", "-y",
-         "-f", "lavfi", "-i", f"testsrc=size=160x120:rate=15:duration={seconds}",
-         "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}",
-         "-c:v", "mpeg2video", "-c:a", "mp2", "-shortest",
-         "-f", "mpegts", str(path)],
-        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        [
+            FFMPEG,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"testsrc=size=160x120:rate=15:duration={seconds}",
+            "-f",
+            "lavfi",
+            "-i",
+            f"sine=frequency=440:duration={seconds}",
+            "-c:v",
+            "mpeg2video",
+            "-c:a",
+            "mp2",
+            "-shortest",
+            "-f",
+            "mpegts",
+            str(path),
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
 
 
 def testRecoveryMergesOrphanedPartsOnStartup(tmp_path, monkeypatch):
@@ -398,7 +462,9 @@ def canReadMpegts(tmp_path):
     writeTs(sample, seconds=1)
     result = subprocess.run(
         [FFMPEG, "-v", "error", "-i", str(sample), "-f", "null", "-"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     sample.unlink()
     return result.returncode == 0
 
@@ -429,7 +495,8 @@ def testRecoveryRemuxesTempIntoRecordingName(tmp_path, monkeypatch):
         '  [ "$prev" = "-i" ] && in="$a"\n'
         '  out="$a"; prev="$a"\n'
         'done\n'
-        'cp "$in" "$out"')
+        'cp "$in" "$out"',
+    )
     monkeypatch.setattr(bot_module, "FFMPEG_PATH", fake)
 
     temp = folder / "tester-20260101-000000.tmp.ts"
@@ -489,9 +556,7 @@ def testRecoveryLeavesFinishedRecordingsAlone(tmp_path, monkeypatch):
 def testRecoveryRunsOnlyOnce(tmp_path, monkeypatch):
     bot, folder = makeRecoveryBot(tmp_path, monkeypatch)
     scans = []
-    monkeypatch.setattr(
-        bot, "_orphanedPartGroups",
-        lambda folder: scans.append(folder) or {})
+    monkeypatch.setattr(bot, "_orphanedPartGroups", lambda folder: scans.append(folder) or {})
 
     bot.recoverOrphanedRecordings()
     bot.recoverOrphanedRecordings()

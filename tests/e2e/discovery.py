@@ -55,13 +55,51 @@ def _unique(values):
 # not model names.  Anything not in this set is still just a candidate: the
 # bot's own status call is the final word.
 _NON_MODEL_PATHS = {
-    "2257", "about", "advertising", "affiliates", "all", "all-models", "anal",
-    "arab", "asian", "blog", "buzz", "cam4", "categories", "contact",
-    "countries", "couple", "couples", "dmca", "faq", "feed", "female",
-    "following", "gold", "help", "home", "how-to-play", "legal", "login",
-    "male", "men", "models", "new", "niches", "privacy", "privates",
-    "search", "signup", "support", "tags", "terms", "token", "training",
-    "trans", "transgender", "women",
+    "2257",
+    "about",
+    "advertising",
+    "affiliates",
+    "all",
+    "all-models",
+    "anal",
+    "arab",
+    "asian",
+    "blog",
+    "buzz",
+    "cam4",
+    "categories",
+    "contact",
+    "countries",
+    "couple",
+    "couples",
+    "dmca",
+    "faq",
+    "feed",
+    "female",
+    "following",
+    "gold",
+    "help",
+    "home",
+    "how-to-play",
+    "legal",
+    "login",
+    "male",
+    "men",
+    "models",
+    "new",
+    "niches",
+    "privacy",
+    "privates",
+    "search",
+    "signup",
+    "support",
+    "tags",
+    "terms",
+    "token",
+    "training",
+    "trans",
+    "transgender",
+    "women",
 }
 
 
@@ -88,6 +126,7 @@ def _discover_cam4() -> list[LiveCandidate]:
     session = _session()
     html = _get(session, "https://hu.cam4.com/female/cams/online/hd").text
     usernames = re.findall(r'href="/([A-Za-z0-9_.-]+)"', html)
+
     # Prefer names that look like model handles (mixed case, digits or an
     # underscore) so the test does not spend its time probing static pages.
     def rank(username: str):
@@ -95,9 +134,7 @@ def _discover_cam4() -> list[LiveCandidate]:
         return (not looks_like_model, username)
 
     return [
-        LiveCandidate(username)
-        for username in sorted(_unique(usernames), key=rank)
-        if username not in _NON_MODEL_PATHS
+        LiveCandidate(username) for username in sorted(_unique(usernames), key=rank) if username not in _NON_MODEL_PATHS
     ]
 
 
@@ -141,8 +178,7 @@ def _discover_chaturbate() -> list[LiveCandidate]:
     session = _session()
     data = _json(
         session,
-        "https://chaturbate.com/api/ts/roomlist/room-list/"
-        "?enable_recommendations=false&limit=25&offset=0",
+        "https://chaturbate.com/api/ts/roomlist/room-list/?enable_recommendations=false&limit=25&offset=0",
     )
     return [
         LiveCandidate(room["username"])
@@ -192,8 +228,7 @@ def _discover_fansly() -> list[LiveCandidate]:
     session = _session()
     data = _json(
         session,
-        "https://apiv3.fansly.com/api/v1/contentdiscovery/livesuggestions"
-        "?limit=20&ngsw-bypass=true",
+        "https://apiv3.fansly.com/api/v1/contentdiscovery/livesuggestions?limit=20&ngsw-bypass=true",
     )
     candidates = []
     for account in data.get("response", {}).get("accounts", []):
@@ -225,8 +260,7 @@ def _discover_manyvids() -> list[LiveCandidate]:
                 and creator.get("session_type") == "PUBLIC"
                 and creator.get("url_handle")
             ):
-                candidates.append(LiveCandidate(
-                    creator["url_handle"], str(creator.get("user_id")) or None))
+                candidates.append(LiveCandidate(creator["url_handle"], str(creator.get("user_id")) or None))
         next_token = data.get("next_token")
         if not next_token:
             break
@@ -237,19 +271,14 @@ def _discover_myfreecams() -> list[LiveCandidate]:
     session = _session()
     data = _json(
         session,
-        "https://api-edge.myfreecams.com/newsfeed"
-        "?view_selection=all_models&size=25&page=0&offset=0&online_only=1",
+        "https://api-edge.myfreecams.com/newsfeed?view_selection=all_models&size=25&page=0&offset=0&online_only=1",
     )
     users = data.get("result", {}).get("users", {})
     users_by_name = {
-        user["username"]: user
-        for user in users.values()
-        if user.get("username") and user.get("online") == 1
+        user["username"]: user for user in users.values() if user.get("username") and user.get("online") == 1
     }
     candidates = [LiveCandidate(username) for username in users_by_name]
-    candidates.sort(
-        key=lambda candidate: -(users_by_name[candidate.username].get("cam_score") or 0)
-    )
+    candidates.sort(key=lambda candidate: -(users_by_name[candidate.username].get("cam_score") or 0))
     return candidates
 
 
@@ -260,9 +289,7 @@ def _discover_streamate() -> list[LiveCandidate]:
         "https://streamate.com/v4/performers/fallback?domain=streamate.com",
     )
     return [
-        LiveCandidate(performer["nickname"])
-        for performer in data.get("performers", [])
-        if performer.get("nickname")
+        LiveCandidate(performer["nickname"]) for performer in data.get("performers", []) if performer.get("nickname")
     ]
 
 
@@ -316,16 +343,13 @@ DISCOVERERS: dict[str, Callable[[], list[LiveCandidate]]] = {
     "SC": _discover_stripchat_2d,
     "SCVR": _discover_stripchat_vr,
     "F4F": _unsupported(
-        "Flirt4Free live-model discovery is not implemented; set "
-        "STRMNTR_E2E_MODEL_F4F to a known model to test it"
+        "Flirt4Free live-model discovery is not implemented; set STRMNTR_E2E_MODEL_F4F to a known model to test it"
     ),
     "SCHU": _unsupported(
-        "SexChat.hu live-model discovery is not implemented; set "
-        "STRMNTR_E2E_MODEL_SCHU to a known model to test it"
+        "SexChat.hu live-model discovery is not implemented; set STRMNTR_E2E_MODEL_SCHU to a known model to test it"
     ),
     "XLC": _unsupported(
-        "XLoveCam live-model discovery is not implemented; set "
-        "STRMNTR_E2E_MODEL_XLC to a known model to test it"
+        "XLoveCam live-model discovery is not implemented; set STRMNTR_E2E_MODEL_XLC to a known model to test it"
     ),
 }
 

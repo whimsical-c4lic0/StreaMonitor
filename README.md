@@ -33,7 +33,7 @@ There are hundreds of clones of the sites above, you can read about them on [thi
 ## Requirements
 * Python 3
   * Install the project dependencies with [uv](https://docs.astral.sh/uv/): `uv sync`.
-* FFmpeg
+* FFmpeg and ffprobe
 
 ## Usage
 
@@ -91,11 +91,27 @@ When you set the WEBSERVER_HOST it is also accesible to from other computers in 
 
 ## Docker support
 
-You can run this application in docker. I prefer docker-compose so I included an example docker-compose.yml file that you can use.
-Simply start it in the folder with `docker-compose up`.
-
 The image includes everything needed for the supported sites, with no extra
-host setup.
+host setup. The published image is maintained at
+`ghcr.io/whimsical-c4lic0/streamonitor`.
+
+### Published images
+
+* `ghcr.io/whimsical-c4lic0/streamonitor:latest` tracks the most recent
+  validated version tag.
+* `ghcr.io/whimsical-c4lic0/streamonitor:<X.Y.Z>` is an immutable release
+  built from tag `vX.Y.Z` (the leading `v` is stripped; there is no
+  `vX.Y.Z` image tag).
+* Both tags point at the same digest for a release. Prefer pinning the digest
+  in production: `ghcr.io/whimsical-c4lic0/streamonitor@sha256:<digest>`.
+
+The container runs as the unprivileged `streamonitor` user (UID/GID `1000`).
+Its data must stay writable by that user, so when bind-mounting host files and
+directories, set ownership once:
+
+```sh
+chown -R 1000:1000 downloads config.json stripchat_mouflon_keys.json
+```
 
 ## Configuration
 

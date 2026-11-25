@@ -29,8 +29,7 @@ class FakeBot:
 
 
 class FakeBackend:
-    def __init__(self, events=None, write_media=True, block=False,
-                 start_error=None):
+    def __init__(self, events=None, write_media=True, block=False, start_error=None):
         self.events = list(events or [])
         self.write_media = write_media
         self.block = block
@@ -83,7 +82,10 @@ class FakeBackend:
 def make_stream(token="SECRET", uid=42, expires_at=None, refresh=None):
     return AgoraStream(
         credentials=AgoraCredentials(
-            app_id="app-id", channel="channel-name", token=token, uid=uid,
+            app_id="app-id",
+            channel="channel-name",
+            token=token,
+            uid=uid,
             expires_at=expires_at,
         ),
         refresh=refresh,
@@ -118,13 +120,9 @@ def test_record_logs_do_not_contain_the_token(tmp_path, monkeypatch):
 
     bot = FakeBot()
     bot.logger = logger
-    backend = FakeBackend(events=[{"event": "joined"}, {"event": "media",
-                                                         "width": 640,
-                                                         "height": 360}],
-                          block=True)
+    backend = FakeBackend(events=[{"event": "joined"}, {"event": "media", "width": 640, "height": 360}], block=True)
     downloader = AgoraDownloader(bot, make_stream(), backend=backend)
-    monkeypatch.setattr(agora, "finalize_recording",
-                        lambda source, filename, logger=None, suffix="": True)
+    monkeypatch.setattr(agora, "finalize_recording", lambda source, filename, logger=None, suffix="": True)
 
     thread = threading.Thread(target=lambda: downloader.record(str(tmp_path / "out.mp4")))
     thread.start()
@@ -136,10 +134,7 @@ def test_record_logs_do_not_contain_the_token(tmp_path, monkeypatch):
 
 
 def test_record_stops_cleanly_and_removes_the_temp_file(tmp_path, monkeypatch):
-    backend = FakeBackend(events=[{"event": "joined"}, {"event": "media",
-                                                         "width": 1280,
-                                                         "height": 720}],
-                          block=True)
+    backend = FakeBackend(events=[{"event": "joined"}, {"event": "media", "width": 1280, "height": 720}], block=True)
     bot = FakeBot()
     downloader = AgoraDownloader(bot, make_stream(), backend=backend)
     result = []
@@ -176,7 +171,8 @@ def test_record_without_media_returns_false(tmp_path, monkeypatch):
     downloader = AgoraDownloader(bot, make_stream(), backend=backend)
     called = []
     monkeypatch.setattr(
-        agora, "finalize_recording",
+        agora,
+        "finalize_recording",
         lambda *args, **kwargs: called.append(args) or True,
     )
 
@@ -213,12 +209,8 @@ def test_unsupported_backend_does_not_start(tmp_path, monkeypatch):
 
 
 def test_token_refresh_in_place(tmp_path, monkeypatch):
-    refreshed = AgoraCredentials("app-id", "channel-name", "NEW", 42,
-                                 expires_at=time.time() + 3600)
-    backend = FakeBackend(events=[{"event": "joined"}, {"event": "media",
-                                                         "width": 640,
-                                                         "height": 360}],
-                          block=True)
+    refreshed = AgoraCredentials("app-id", "channel-name", "NEW", 42, expires_at=time.time() + 3600)
+    backend = FakeBackend(events=[{"event": "joined"}, {"event": "media", "width": 640, "height": 360}], block=True)
     bot = FakeBot()
     downloader = AgoraDownloader(
         bot,
@@ -227,8 +219,7 @@ def test_token_refresh_in_place(tmp_path, monkeypatch):
     )
     result = []
 
-    monkeypatch.setattr(agora, "finalize_recording",
-                        lambda source, filename, logger=None, suffix="": True)
+    monkeypatch.setattr(agora, "finalize_recording", lambda source, filename, logger=None, suffix="": True)
     monkeypatch.setattr(parameters, "AGORA_TOKEN_REFRESH_MARGIN", 5)
     monkeypatch.setattr(parameters, "AGORA_JOIN_TIMEOUT", 1)
 
@@ -242,17 +233,29 @@ def test_token_refresh_in_place(tmp_path, monkeypatch):
     assert backend.renewed == ["NEW"]
 
 
-@pytest.mark.skipif(shutil.which(parameters.FFMPEG_PATH) is None,
-                    reason="ffmpeg is required for finalization tests")
+@pytest.mark.skipif(shutil.which(parameters.FFMPEG_PATH) is None, reason="ffmpeg is required for finalization tests")
 def test_finalize_remuxes_and_segments(tmp_path, monkeypatch):
     sample = tmp_path / "sample.mp4"
     subprocess.run(
         [
-            parameters.FFMPEG_PATH, "-y", "-v", "error",
-            "-f", "lavfi", "-i", "testsrc=size=320x240:rate=10",
-            "-f", "lavfi", "-i", "sine=frequency=440",
-            "-t", "1",
-            "-c:v", "mpeg4", "-c:a", "aac",
+            parameters.FFMPEG_PATH,
+            "-y",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=320x240:rate=10",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440",
+            "-t",
+            "1",
+            "-c:v",
+            "mpeg4",
+            "-c:a",
+            "aac",
             str(sample),
         ],
         check=True,
@@ -316,6 +319,7 @@ def test_finalize_rejects_an_empty_source(tmp_path):
 class FakeProcess:
     def __init__(self):
         import io
+
         self.stdin = io.StringIO()
         self.stdout = io.StringIO("")
         self.stderr = io.StringIO("")
@@ -347,14 +351,14 @@ def test_webrtc_backend_writes_a_private_config(tmp_path, monkeypatch):
 
     monkeypatch.setattr(agora_webrtc.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(
-        agora_webrtc.AgoraWebRTCBackend, "available",
+        agora_webrtc.AgoraWebRTCBackend,
+        "available",
         classmethod(lambda cls: True),
     )
     monkeypatch.setattr(agora_webrtc.AgoraWebRTCBackend, "_read_stdout", lambda self: None)
     monkeypatch.setattr(agora_webrtc.AgoraWebRTCBackend, "_read_stderr", lambda self: None)
     backend = agora_webrtc.AgoraWebRTCBackend()
-    backend.start(make_stream().credentials, str(tmp_path / "out.agora.mp4"),
-                  preferred_stream="low", max_duration=30)
+    backend.start(make_stream().credentials, str(tmp_path / "out.agora.mp4"), preferred_stream="low", max_duration=30)
 
     assert backend._config_path is not None
     assert oct(os.stat(backend._config_path).st_mode & 0o777) == "0o600"
@@ -437,34 +441,43 @@ def test_build_answer_sdp_uses_the_server_ice_and_codecs():
         "iceParameters": {
             "iceUfrag": "serverufrag",
             "icePwd": "serverpwd",
-            "candidates": [{
-                "foundation": "1",
-                "protocol": "udp",
-                "priority": 1,
-                "ip": "192.0.2.10",
-                "port": 4443,
-                "type": "host",
-            }],
+            "candidates": [
+                {
+                    "foundation": "1",
+                    "protocol": "udp",
+                    "priority": 1,
+                    "ip": "192.0.2.10",
+                    "port": 4443,
+                    "type": "host",
+                }
+            ],
         },
         "dtlsParameters": {
             "role": "server",
             "fingerprints": [{"algorithm": "sha-256", "fingerprint": "CC:DD"}],
         },
-        "rtpCapabilities": {"sendrecv": {
-            "audioCodecs": [{
-                "payloadType": 111,
-                "rtpMap": {
-                    "encodingName": "opus", "clockRate": 48000,
-                    "encodingParameters": 2,
-                },
-                "rtcpFeedbacks": [{"type": "transport-cc"}],
-            }],
-            "videoCodecs": [{
-                "payloadType": 96,
-                "rtpMap": {"encodingName": "VP8", "clockRate": 90000},
-                "rtcpFeedbacks": [{"type": "nack"}, {"type": "nack", "parameter": "pli"}],
-            }],
-        }},
+        "rtpCapabilities": {
+            "sendrecv": {
+                "audioCodecs": [
+                    {
+                        "payloadType": 111,
+                        "rtpMap": {
+                            "encodingName": "opus",
+                            "clockRate": 48000,
+                            "encodingParameters": 2,
+                        },
+                        "rtcpFeedbacks": [{"type": "transport-cc"}],
+                    }
+                ],
+                "videoCodecs": [
+                    {
+                        "payloadType": 96,
+                        "rtpMap": {"encodingName": "VP8", "clockRate": 90000},
+                        "rtcpFeedbacks": [{"type": "nack"}, {"type": "nack", "parameter": "pli"}],
+                    }
+                ],
+            }
+        },
     }
 
     answer = _build_answer_sdp(_OFFER_SDP, server_ortc)

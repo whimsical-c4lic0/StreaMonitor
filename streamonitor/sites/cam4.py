@@ -1,4 +1,3 @@
-import requests
 from streamonitor.bot import Bot
 from streamonitor.enums import Status
 
@@ -9,7 +8,7 @@ class Cam4(Bot):
 
     def getWebsiteURL(self):
         return "https://hu.cam4.com/" + self.username
-    
+
     def getVideoUrl(self):
         if 'cdnURL' not in self.lastInfo:
             return None

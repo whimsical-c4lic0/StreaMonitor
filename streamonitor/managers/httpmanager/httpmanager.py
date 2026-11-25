@@ -6,8 +6,14 @@ import os
 import json
 import logging
 
-from parameters import WEBSERVER_HOST, WEBSERVER_PORT, WEBSERVER_PASSWORD, WEB_LIST_FREQUENCY, WEB_STATUS_FREQUENCY, \
-    WEBSERVER_SKIN
+from parameters import (
+    WEBSERVER_HOST,
+    WEBSERVER_PORT,
+    WEBSERVER_PASSWORD,
+    WEB_LIST_FREQUENCY,
+    WEB_STATUS_FREQUENCY,
+    WEBSERVER_SKIN,
+)
 import streamonitor.log as log
 from functools import wraps
 from secrets import compare_digest
@@ -20,7 +26,13 @@ from streamonitor.utils import human_file_size
 from .filters import status_icon, status_text, reltime, abstime
 from .mappers import web_status_lookup
 from .models import InvalidStreamer
-from .utils import confirm_deletes, streamer_list, get_recording_query_params, get_streamer_context, set_streamer_list_cookies
+from .utils import (
+    confirm_deletes,
+    streamer_list,
+    get_recording_query_params,
+    get_streamer_context,
+    set_streamer_list_cookies,
+)
 
 
 class HTTPManager(Manager):
@@ -37,11 +49,8 @@ class HTTPManager(Manager):
             raise ValueError(f'Invalid skin name: {skin}')
 
     def run(self):
-        app = Flask(
-            __name__,
-            template_folder=f'skins/{self.skin}/templates'
-        )
-        
+        app = Flask(__name__, template_folder=f'skins/{self.skin}/templates')
+
         werkzeug_logger = logging.getLogger('werkzeug')
         werkzeug_logger.disabled = True
 
@@ -72,13 +81,23 @@ class HTTPManager(Manager):
             def wrapped_view(**kwargs):
                 auth = request.authorization
                 if WEBSERVER_PASSWORD != "" and not (auth and check_auth(auth.username, auth.password)):
-                    return ('Unauthorized', 401, {
-                        'WWW-Authenticate': 'Basic realm="Login Required"'
-                    })
+                    return ('Unauthorized', 401, {'WWW-Authenticate': 'Basic realm="Login Required"'})
 
                 return f(**kwargs)
 
             return wrapped_view
+
+        @app.route('/health')
+        def health():
+            """Unauthenticated liveness/readiness endpoint for container probes."""
+            payload = {
+                'status': 'ok',
+                'streamers': len(self.streamers),
+                'monitored': sum(bool(s.running) for s in self.streamers),
+                'recording': sum(bool(s.recording) for s in self.streamers),
+                'offline': sum(s.sc in (Status.OFFLINE, Status.LONG_OFFLINE) for s in self.streamers),
+            }
+            return Response(json.dumps(payload), mimetype='application/json')
 
         @app.route('/dashboard')
         @login_required
@@ -94,10 +113,15 @@ class HTTPManager(Manager):
             json_status = {}
             for status in Status:
                 json_status[status.value] = Bot.status_messages[status]
-            return Response(json.dumps({
-                "sites": json_sites,
-                "status": json_status,
-            }), mimetype='application/json')
+            return Response(
+                json.dumps(
+                    {
+                        "sites": json_sites,
+                        "status": json_status,
+                    }
+                ),
+                mimetype='application/json',
+            )
 
         @app.route('/api/data')
         @login_required
@@ -111,16 +135,21 @@ class HTTPManager(Manager):
                     "sc": streamer.sc.value,
                     "status": streamer.status(),
                     "url": streamer.url,
-                    "username": streamer.username
+                    "username": streamer.username,
                 }
                 json_streamer.append(json_stream)
-            return Response(json.dumps({
-                "streamers": json_streamer,
-                "freeSpace": {
-                    "percentage": str(round(OOSDetector.free_space(), 3)),
-                    "absolute": human_file_size(OOSDetector.space_usage().free)
-                }
-            }), mimetype='application/json')
+            return Response(
+                json.dumps(
+                    {
+                        "streamers": json_streamer,
+                        "freeSpace": {
+                            "percentage": str(round(OOSDetector.free_space(), 3)),
+                            "absolute": human_file_size(OOSDetector.space_usage().free),
+                        },
+                    }
+                ),
+                mimetype='application/json',
+            )
 
         @app.route('/api/command')
         @login_required
@@ -181,10 +210,7 @@ class HTTPManager(Manager):
         @app.route('/video/<user>/<site>/<path:filename>', methods=['GET'])
         def get_video(user, site, filename):
             streamer = cast(Union[Bot, None], self.getStreamer(user, site))
-            return send_from_directory(
-                os.path.abspath(streamer.outputFolder),
-                filename
-            )
+            return send_from_directory(os.path.abspath(streamer.outputFolder), filename)
 
         @app.route('/videos/watch/<user>/<site>/<path:play_video>', methods=['GET'])
         @login_required
@@ -283,7 +309,8 @@ class HTTPManager(Manager):
             # need this from the UI perspective to know whether to update due to polling windows
             if previous_state != streamer.sc:
                 streamer_context = get_streamer_context(
-                    streamer, sort_by_size, play_video, request.headers.get('User-Agent'))
+                    streamer, sort_by_size, play_video, request.headers.get('User-Agent')
+                )
             status_code = 200
             has_error = False
             if streamer is None:

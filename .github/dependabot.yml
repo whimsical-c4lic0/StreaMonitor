@@ -17,3 +17,12 @@ updates:
     groups:
       docker-images:
         patterns: ["*"]
+
+  # Actions pinned by commit SHA in .github/workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns: ["*"]

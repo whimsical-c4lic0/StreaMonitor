@@ -10,12 +10,14 @@ _http_lib = None
 if not _http_lib:
     try:
         import pycurl_requests as requests
+
         _http_lib = 'pycurl'
     except ImportError:
         pass
 if not _http_lib:
     try:
         import requests
+
         _http_lib = 'requests'
     except ImportError:
         pass
@@ -26,7 +28,7 @@ if not _http_lib:
 def getVideoNativeHLS(self, url, filename, m3u_processor=None):
     self.stopDownloadFlag = False
     error = False
-    tmpfilename = filename[:-len('.' + CONTAINER)] + '.tmp.ts'
+    tmpfilename = filename[: -len('.' + CONTAINER)] + '.tmp.ts'
     session = requests.Session()
 
     def execute():
@@ -91,7 +93,7 @@ def getVideoNativeHLS(self, url, filename, m3u_processor=None):
             output_str += f' -f segment -reset_timestamps 1 -segment_time {str(SEGMENT_TIME)}'
             if hasattr(self, 'filename_extra_suffix'):
                 suffix = self.filename_extra_suffix
-            output_path = filename[:-len('.' + CONTAINER)] + '_%03d' + suffix + '.' + CONTAINER
+            output_path = filename[: -len('.' + CONTAINER)] + '_%03d' + suffix + '.' + CONTAINER
         ff = FFmpeg(executable=FFMPEG_PATH, inputs={tmpfilename: None}, outputs={output_path: output_str})
         ff.run(stdout=stdout, stderr=stderr)
     except FFRuntimeError as e:
